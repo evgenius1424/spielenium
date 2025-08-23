@@ -32,6 +32,7 @@
   },
   "exports": {
     "./globals.css": "./src/styles/globals.css",
+    "./guess-the-price.css": "./src/styles/guess-the-price.css",
     "./postcss.config": "./postcss.config.mjs",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",

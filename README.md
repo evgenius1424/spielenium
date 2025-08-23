@@ -1,8 +1,8 @@
 # 🎮 Spielenium
 
 **Spielenium** is a fun playground for creating **couch games** and interactive widgets.  
-Think: *one big screen to play on, and everyone else joins in from their phone, tablet, or laptop as a remote
-controller.*
+Think: _one big screen to play on, and everyone else joins in from their phone, tablet, or laptop as a remote
+controller._
 
 ---
 
@@ -23,7 +23,7 @@ controller.*
 - React for UI
 - WebSockets / SSE for real-time game interactions
 
-*(more details to come as the project grows)*
+_(more details to come as the project grows)_
 
 ---
 
@@ -40,3 +40,4 @@ pnpm install
 
 # Run development server (example)
 pnpm dev
+```

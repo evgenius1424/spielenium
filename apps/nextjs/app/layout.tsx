@@ -1,17 +1,25 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import type React from "react";
+import type {Metadata} from "next";
+import {Geist, Manrope} from "next/font/google";
+import "@repo/ui/guess-the-price.css";
 
-import "@repo/ui/globals.css";
-import { Providers } from "@/components/providers";
-
-const fontSans = Geist({
+const geist = Geist({
   subsets: ["latin"],
-  variable: "--font-sans",
+  display: "swap",
+  variable: "--font-geist",
 });
 
-const fontMono = Geist_Mono({
+const manrope = Manrope({
   subsets: ["latin"],
-  variable: "--font-mono",
+  display: "swap",
+  variable: "--font-manrope",
 });
+
+export const metadata: Metadata = {
+  title: "Guess the Price Game",
+  description: "Interactive game show experience with 3 players",
+  generator: "v0.app",
+};
 
 export default function RootLayout({
   children,
@@ -19,12 +27,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased `}
-      >
-        <Providers>{children}</Providers>
-      </body>
+    <html
+      lang="en"
+      className={`${geist.variable} ${manrope.variable} antialiased`}
+    >
+      <body className="font-sans">{children}</body>
     </html>
   );
 }
