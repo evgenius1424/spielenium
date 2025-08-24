@@ -1,16 +1,18 @@
-export const runtime = "nodejs";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getRoom, type ServerEvent, subscribe } from "@/lib/rooms";
 
 function toSSE(e: ServerEvent) {
   return `event: ${e.type}\ndata: ${JSON.stringify(e.payload)}\n\n`;
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { roomId: string } },
+  { params }: { params: Promise<{ roomId: string }> },
 ) {
-  const room = getRoom(params.roomId);
+  const { roomId } = await params;
+  const room = getRoom(roomId);
   if (!room) {
     return new Response("Room not found", { status: 404 });
   }

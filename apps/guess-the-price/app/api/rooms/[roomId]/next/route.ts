@@ -4,11 +4,15 @@ import { closeRound, getRoom, nextStep, pickItem } from "@/lib/rooms";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { roomId: string } },
+  { params }: { params: Promise<{ roomId: string }> },
 ) {
-  const room = getRoom(params.roomId);
-  if (!room)
+  // Await the params object to access its properties.
+  const { roomId } = await params;
+  const room = getRoom(roomId);
+
+  if (!room) {
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
+  }
 
   const body = await req.json().catch(() => ({}) as any);
   const action = body?.action as "pick" | "close" | "next";
@@ -16,11 +20,14 @@ export async function POST(
   if (action === "pick") {
     const category = String(body.category || "");
     const picked = pickItem(room, category);
-    if (!picked)
+
+    if (!picked) {
       return NextResponse.json(
         { error: "No items left in category" },
         { status: 400 },
       );
+    }
+
     return NextResponse.json({ ok: true, picked });
   }
 
