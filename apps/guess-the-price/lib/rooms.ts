@@ -123,11 +123,8 @@ export function roomToPublic(room: Room): RoomPublic {
       name,
       score,
     })),
-    availableCategories: Object.keys(gameData.categories).filter((cat) => {
-      const all = (gameData.categories as any)[cat] as Item[];
-      const usedInCat = all.filter((i) => room.usedItems.has(i.name));
-      return usedInCat.length < all.length;
-    }),
+    // availableCategories are now determined client-side from client-provided data
+    availableCategories: [],
   };
 }
 
@@ -169,12 +166,21 @@ export function joinRoom(room: Room, name: string): PlayerPublic {
 export function pickItem(
   room: Room,
   category: string,
+  itemOverride?: Item,
 ): { category: string; item: Item } | null {
-  const items = (gameData.categories as any)[category] as Item[] | undefined;
-  if (!items) return null;
-  const available = items.filter((i) => !room.usedItems.has(i.name));
-  if (available.length === 0) return null;
-  const item = available[Math.floor(Math.random() * available.length)];
+  let item: Item | undefined = itemOverride;
+
+  if (!item) {
+    const items = (gameData.categories as any)[category] as Item[] | undefined;
+    if (!items) return null;
+    const available = items.filter((i) => !room.usedItems.has(i.name));
+    if (available.length === 0) return null;
+    item = available[Math.floor(Math.random() * available.length)];
+  } else {
+    // If client provided the item, ensure it's not already used
+    if (room.usedItems.has(item.name)) return null;
+  }
+
   room.selectedCategory = category;
   // @ts-ignore
   room.currentItem = item;

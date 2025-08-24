@@ -18,11 +18,13 @@ export async function POST(
 
   if (action === "pick") {
     const category = String(body.category || "");
-    const picked = pickItem(room, category);
+    // Allow client to provide the specific item to keep full dataset client-only
+    const item = body?.item as { name: string; price: number } | undefined;
+    const picked = pickItem(room, category, item as any);
 
     if (!picked) {
       return NextResponse.json(
-        { error: "No items left in category" },
+        { error: "No items left in category or item already used" },
         { status: 400 },
       );
     }

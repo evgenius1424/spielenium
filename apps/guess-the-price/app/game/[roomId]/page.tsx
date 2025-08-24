@@ -1,6 +1,6 @@
 // app/game/[roomId]/page.tsx
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -27,6 +27,8 @@ type RoomPublic = {
   availableCategories: string[];
 };
 
+type GameData = { categories: Record<string, Item[]> };
+
 export default function HostRoom() {
   const { roomId } = useParams<{ roomId: string }>();
   const [room, setRoom] = useState<RoomPublic | null>(null);
@@ -34,6 +36,30 @@ export default function HostRoom() {
     Array<{ playerId: string; name: string; diff: number; guess?: number }>
   >([]);
   const [winner, setWinner] = useState<Player | null>(null);
+
+  const [gameData, setGameData] = useState<GameData | null>(null);
+  const [usedItems, setUsedItems] = useState<Set<string>>(new Set());
+
+  // Load client-only game data
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("gameData");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && parsed.categories) {
+          setGameData(parsed as GameData);
+        }
+      }
+    } catch {}
+  }, []);
+
+  const availableCategories = useMemo(() => {
+    if (!gameData) return [] as string[];
+    const cats = Object.keys(gameData.categories || {});
+    return cats.filter((cat) =>
+      (gameData.categories[cat] || []).some((i) => !usedItems.has(i.name)),
+    );
+  }, [gameData, usedItems]);
 
   // SSE subscription
   useEffect(() => {
@@ -67,11 +93,21 @@ export default function HostRoom() {
   }, [roomId]);
 
   async function pick(category: string) {
-    await fetch(`/api/rooms/${roomId}/next`, {
+    if (!gameData) return;
+    const pool = (gameData.categories[category] || []).filter(
+      (i) => !usedItems.has(i.name),
+    );
+    if (pool.length === 0) return;
+    const item = pool[Math.floor(Math.random() * pool.length)];
+    const res = await fetch(`/api/rooms/${roomId}/next`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "pick", category }),
+      body: JSON.stringify({ action: "pick", category, item }),
     });
+    if (res.ok) {
+      // Optimistically mark as used locally to avoid duplicates
+      setUsedItems((prev) => new Set(prev).add(item.name));
+    }
   }
 
   async function closeRound() {
@@ -128,7 +164,7 @@ export default function HostRoom() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {room.availableCategories.map((cat) => (
+              {availableCategories.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => pick(cat)}
