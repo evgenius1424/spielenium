@@ -1,8 +1,13 @@
 "use client";
-import {useState} from "react";
-import {useRouter} from "next/navigation";
-import {Button} from "@repo/ui/components/button";
-import {Card, CardContent, CardHeader, CardTitle,} from "@repo/ui/components/card";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@repo/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/card";
 
 export default function LobbyPage() {
   const [loading, setLoading] = useState(false);

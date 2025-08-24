@@ -1,11 +1,16 @@
 // app/game/[roomId]/page.tsx
 "use client";
-import {useEffect, useState} from "react";
-import {useParams} from "next/navigation";
-import {Button} from "@repo/ui/components/button";
-import {Card, CardContent, CardHeader, CardTitle,} from "@repo/ui/components/card";
-import {Badge} from "@repo/ui/components/badge";
-import {Trophy} from "lucide-react";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { Button } from "@repo/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/card";
+import { Badge } from "@repo/ui/components/badge";
+import { Trophy } from "lucide-react";
 
 type GameState = "category-selection" | "guessing" | "results" | "game-over";
 

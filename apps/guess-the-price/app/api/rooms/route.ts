@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
-import {NextRequest, NextResponse} from "next/server";
-import {createRoom} from "@/lib/rooms";
+import { NextRequest, NextResponse } from "next/server";
+import { createRoom } from "@/lib/rooms";
 
 export async function POST(_req: NextRequest) {
   const room = createRoom();

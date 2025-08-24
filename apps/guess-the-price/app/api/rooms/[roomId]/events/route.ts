@@ -1,6 +1,6 @@
 export const runtime = "nodejs";
-import {NextRequest} from "next/server";
-import {getRoom, type ServerEvent, subscribe} from "@/lib/rooms";
+import { NextRequest } from "next/server";
+import { getRoom, type ServerEvent, subscribe } from "@/lib/rooms";
 
 function toSSE(e: ServerEvent) {
   return `event: ${e.type}\ndata: ${JSON.stringify(e.payload)}\n\n`;

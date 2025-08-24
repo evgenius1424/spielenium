@@ -1,10 +1,15 @@
 "use client";
-import {useEffect, useState} from "react";
-import {useParams} from "next/navigation";
-import {Button} from "@repo/ui/components/button";
-import {Card, CardContent, CardHeader, CardTitle,} from "@repo/ui/components/card";
-import {Input} from "@repo/ui/components/input";
-import {Badge} from "@repo/ui/components/badge";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { Button } from "@repo/ui/components/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/card";
+import { Input } from "@repo/ui/components/input";
+import { Badge } from "@repo/ui/components/badge";
 
 type GameState = "category-selection" | "guessing" | "results" | "game-over";
 
@@ -23,56 +28,93 @@ type RoomPublic = {
 
 export default function JoinRoom() {
   const { roomId } = useParams<{ roomId: string }>();
+
+  const [player, setPlayer] = useState<Player | null>(() => {
+    try {
+      const storedPlayer = localStorage.getItem(`player_${roomId}`);
+      return storedPlayer ? JSON.parse(storedPlayer) : null;
+    } catch {
+      return null;
+    }
+  });
+
   const [room, setRoom] = useState<RoomPublic | null>(null);
-  const [joined, setJoined] = useState(false);
-  const [name, setName] = useState("");
-  const [player, setPlayer] = useState<Player | null>(null);
+  const [name, setName] = useState(player?.name || "");
   const [guess, setGuess] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
   useEffect(() => {
-    const es = new EventSource(`/api/rooms/${roomId}/events`);
+    if (player) {
+      const es = new EventSource(`/api/rooms/${roomId}/events`);
 
-    es.addEventListener("state", (e: MessageEvent) => {
-      const payload: RoomPublic = JSON.parse(e.data);
-      setRoom(payload);
-      // clear guess if state changed away from guessing
-      if (payload.state !== "guessing") setGuess("");
-    });
+      es.addEventListener("state", (e: MessageEvent) => {
+        const payload: RoomPublic = JSON.parse(e.data);
+        setRoom(payload);
+        if (payload.state !== "guessing") {
+          setGuess("");
+          setFeedback(null);
+        }
+      });
 
-    es.addEventListener("question", () => {
-      setGuess("");
-    });
+      es.addEventListener("question", () => {
+        setGuess("");
+        setFeedback(null);
+      });
 
-    return () => es.close();
-  }, [roomId]);
+      return () => es.close();
+    }
+  }, [roomId, player]);
 
   async function doJoin() {
-    const res = await fetch(`/api/rooms/${roomId}/join`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      setPlayer(data);
-      setJoined(true);
+    if (!name.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setPlayer(data);
+        localStorage.setItem(`player_${roomId}`, JSON.stringify(data));
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
   async function submit() {
-    if (!player) return;
-    const num = Number.parseFloat(guess);
-    if (Number.isNaN(num)) return;
-    await fetch(`/api/rooms/${roomId}/guess`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ playerId: player.id, guess: num }),
-    });
+    if (!player || !guess.trim()) return;
+    setLoading(true);
+    setFeedback("Sending your guess...");
+    try {
+      const num = Number.parseFloat(guess);
+      if (Number.isNaN(num)) {
+        setFeedback("Please enter a valid number.");
+        return;
+      }
+      const res = await fetch(`/api/rooms/${roomId}/guess`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerId: player.id, guess: num }),
+      });
+      if (res.ok) {
+        setFeedback("Guess sent! Waiting for other players.");
+      } else {
+        setFeedback("Failed to send guess. Please try again.");
+      }
+    } catch {
+      setFeedback("An error occurred. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <div className="min-h-screen p-4 max-w-md mx-auto">
-      {!joined ? (
+      {!player ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-center text-2xl">
@@ -84,9 +126,10 @@ export default function JoinRoom() {
               placeholder="Your name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={loading}
             />
-            <Button onClick={doJoin} disabled={!name.trim()}>
-              Join
+            <Button onClick={doJoin} disabled={loading || !name.trim()}>
+              {loading ? "Joining..." : "Join"}
             </Button>
           </CardContent>
         </Card>
@@ -94,7 +137,7 @@ export default function JoinRoom() {
         <Card>
           <CardHeader>
             <CardTitle className="text-center text-xl">
-              Hello {player?.name}
+              Hello {player.name}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -126,11 +169,17 @@ export default function JoinRoom() {
                     value={guess}
                     onChange={(e) => setGuess(e.target.value)}
                     placeholder="Enter your guess"
+                    disabled={loading}
                   />
-                  <Button onClick={submit} disabled={guess.trim() === ""}>
-                    Send
+                  <Button onClick={submit} disabled={loading || !guess.trim()}>
+                    {loading ? "Sending..." : "Send"}
                   </Button>
                 </div>
+                {feedback && (
+                  <div className="text-center text-sm text-muted-foreground">
+                    {feedback}
+                  </div>
+                )}
               </div>
             ) : room.state === "results" ? (
               <div className="text-center">Check big screen for results…</div>
