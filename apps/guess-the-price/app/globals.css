@@ -1,0 +1,33 @@
+:root {
+    --background: oklch(0.98 0.02 85); /* Light amber background */
+    --foreground: oklch(0.25 0.01 240); /* Dark gray for text */
+    --card: oklch(1 0 0); /* White for player sections */
+    --card-foreground: oklch(0.25 0.01 240); /* Dark text on cards */
+    --popover: oklch(0.55 0.15 264); /* Indigo for notifications */
+    --popover-foreground: oklch(0.98 0 0); /* White text on popovers */
+    --primary: oklch(0.65 0.15 50); /* Amber primary for buttons */
+    --primary-foreground: oklch(0.98 0 0); /* White text on primary */
+    --secondary: oklch(0.98 0.02 85); /* Light amber secondary */
+    --secondary-foreground: oklch(0.25 0.01 240); /* Dark text on secondary */
+    --muted: oklch(0.96 0.01 200); /* Very light blue-gray */
+    --muted-foreground: oklch(0.45 0.01 240); /* Muted text */
+    --accent: oklch(0.55 0.15 264); /* Indigo accent for celebrations */
+    --accent-foreground: oklch(0.98 0 0); /* White text on accent */
+    --border: oklch(0.85 0.01 240); /* Light gray borders */
+    --input: oklch(1 0 0); /* White input fields */
+    --ring: oklch(0.55 0.15 264); /* Indigo focus ring */
+    --chart-1: oklch(0.65 0.15 50); /* Amber chart colors */
+    --chart-2: oklch(0.75 0.12 65); /* Yellow chart colors */
+    --chart-3: oklch(0.7 0.13 55); /* Orange chart colors */
+    --chart-4: oklch(0.6 0.18 45); /* Deep orange chart colors */
+    --chart-5: oklch(0.68 0.16 48); /* Orange-amber chart colors */
+    --radius: 0.5rem; /* Friendly rounded corners */
+    --sidebar: oklch(1 0 0); /* White sidebar */
+    --sidebar-foreground: oklch(0.25 0.01 240); /* Dark sidebar text */
+    --sidebar-primary: oklch(0.65 0.15 50); /* Amber sidebar primary */
+    --sidebar-primary-foreground: oklch(0.98 0 0); /* White sidebar primary text */
+    --sidebar-accent: oklch(0.55 0.15 264); /* Indigo sidebar accent */
+    --sidebar-accent-foreground: oklch(0.98 0 0); /* White sidebar accent text */
+    --sidebar-border: oklch(0.85 0.01 240); /* Light sidebar borders */
+    --sidebar-ring: oklch(0.65 0.15 50); /* Amber sidebar focus ring */
+}
