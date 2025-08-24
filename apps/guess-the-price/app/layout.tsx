@@ -2,7 +2,7 @@ import type React from "react";
 import type {Metadata} from "next";
 import {Geist, Manrope} from "next/font/google";
 import "@repo/ui/globals.css";
-import "./globals.css"
+import "./globals.css";
 
 const geist = Geist({
   subsets: ["latin"],
