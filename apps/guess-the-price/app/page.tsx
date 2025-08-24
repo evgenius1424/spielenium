@@ -26,7 +26,16 @@ export default function LobbyPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <div className="text-center mb-8">
+        <h1 className="text-4xl font-bold text-foreground mb-2 font-sans">
+          🎯 Guess the Price! 🎯
+        </h1>
+        <p className="text-muted-foreground font-mono">
+          Players compete to guess the closest price and win points!
+        </p>
+      </div>
+
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center text-2xl">
