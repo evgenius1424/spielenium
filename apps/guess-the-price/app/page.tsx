@@ -243,7 +243,7 @@ export default function GuessThePrizeGame() {
                   {selectedCategory}
                 </Badge>
                 <br />
-                What's the price of:{" "}
+                What&#39;s the price of:{" "}
                 <span className="text-primary">{currentItem.name}</span>?
               </CardTitle>
             </CardHeader>
