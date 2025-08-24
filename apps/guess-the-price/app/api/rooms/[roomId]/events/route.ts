@@ -37,8 +37,6 @@ export async function GET(
         } catch {}
       };
 
-      // Close on client abort
-      // @ts-ignore
       _req.signal?.addEventListener("abort", close);
     },
   });
@@ -48,7 +46,7 @@ export async function GET(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
-      "X-Accel-Buffering": "no", // nginx
+      "X-Accel-Buffering": "no",
     },
   });
 }

@@ -1,4 +1,3 @@
-export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { getRoom, submitGuess } from "@/lib/rooms";
 
@@ -6,7 +5,6 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ roomId: string }> },
 ) {
-  // Await the params object to access its properties.
   const { roomId } = await params;
   const room = getRoom(roomId);
 

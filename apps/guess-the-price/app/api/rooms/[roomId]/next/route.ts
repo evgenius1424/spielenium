@@ -1,4 +1,3 @@
-export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { closeRound, getRoom, nextStep, pickItem } from "@/lib/rooms";
 
