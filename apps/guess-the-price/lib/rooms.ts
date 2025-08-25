@@ -13,7 +13,7 @@ export type Player = {
   lastGuess?: number;
 };
 
-export type Item = { name: string; price: number };
+export type Item = { name: string; price: number; image?: string };
 
 export type Room = {
   id: string;

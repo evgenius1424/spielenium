@@ -14,7 +14,7 @@ import { Trophy } from "lucide-react";
 
 type GameState = "category-selection" | "guessing" | "results" | "game-over";
 
-type Item = { name: string; price: number };
+type Item = { name: string; price: number; image?: string };
 
 type Player = { id: string; name: string; score: number };
 
@@ -185,17 +185,27 @@ export default function HostRoom() {
               <Badge variant="secondary" className="mb-2">
                 {room.selectedCategory}
               </Badge>
-              <div>
-                What is the price of{" "}
-                <span className="text-primary font-bold">
-                  {room.currentItem.name}
-                </span>
-                ?
-              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-center text-muted-foreground">
+            {room.currentItem.image && (
+              <div className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={room.currentItem.image}
+                  alt={room.currentItem.name}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            )}
+            <div className="text-center text-2xl mt-4">
+              What is the price of{" "}
+              <span className="text-primary font-bold">
+                {room.currentItem.name}
+              </span>
+              ?
+            </div>
+            <p className="text-center text-muted-foreground mt-2">
               Players: enter your guesses on your phones. When ready, close the
               round.
             </p>

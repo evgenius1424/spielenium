@@ -13,7 +13,7 @@ import { Badge } from "@repo/ui/components/badge";
 
 type GameState = "category-selection" | "guessing" | "results" | "game-over";
 
-type Item = { name: string; price: number };
+type Item = { name: string; price: number; image?: string };
 
 type Player = { id: string; name: string; score: number };
 
@@ -150,16 +150,26 @@ export default function JoinRoom() {
             ) : room.state === "guessing" && room.currentItem ? (
               <div className="space-y-3">
                 <div className="text-center">
-                  <Badge variant="secondary" className="mb-1">
+                  <Badge variant="secondary" className="mb-2">
                     {room.selectedCategory}
                   </Badge>
-                  <div>
-                    Price of{" "}
-                    <span className="font-semibold">
-                      {room.currentItem.name}
-                    </span>
-                    ?
+                </div>
+                {room.currentItem.image && (
+                  <div className="mx-auto w-full max-w-sm aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={room.currentItem.image}
+                      alt={room.currentItem.name}
+                      className="h-full w-full object-contain"
+                    />
                   </div>
+                )}
+                <div className="text-center">
+                  Price of{" "}
+                  <span className="font-semibold">
+                    {room.currentItem.name}
+                  </span>
+                  ?
                 </div>
                 <div className="flex gap-2">
                   <span className="self-center text-xl">$</span>
