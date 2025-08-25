@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -16,6 +16,30 @@ export default function LobbyPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  // Initialize from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("gameData");
+      const storedName = localStorage.getItem("gameDataFileName");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && parsed.categories) {
+          setFileName(storedName || "Uploaded data");
+        } else {
+          // clean invalid data
+          localStorage.removeItem("gameData");
+          localStorage.removeItem("gameDataFileName");
+        }
+      }
+    } catch {
+      // if parsing fails, clear
+      localStorage.removeItem("gameData");
+      localStorage.removeItem("gameDataFileName");
+    }
+  }, []);
+
+  const hasGameData = !!fileName; // derived state to control Create button
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -28,6 +52,7 @@ export default function LobbyPage() {
           throw new Error("Invalid data format");
         }
         localStorage.setItem("gameData", JSON.stringify(data));
+        localStorage.setItem("gameDataFileName", file.name);
         setFileName(file.name);
         setError(null);
       } catch (err) {
@@ -41,6 +66,12 @@ export default function LobbyPage() {
   };
 
   async function createRoom() {
+    // prevent creating a room if no data
+    const raw = localStorage.getItem("gameData");
+    if (!raw) {
+      setError("Please upload game data before creating a room.");
+      return;
+    }
     try {
       setLoading(true);
       const res = await fetch("/api/rooms", { method: "POST" });
@@ -75,6 +106,11 @@ export default function LobbyPage() {
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium">Upload Game Data</label>
             <Input type="file" accept=".json" onChange={handleFileUpload} />
+            {!hasGameData && (
+              <p className="text-xs text-muted-foreground text-center">
+                Upload a JSON file with categories and items to start.
+              </p>
+            )}
             {fileName && (
               <p className="text-sm text-green-600 text-center">
                 Uploaded: {fileName}
@@ -89,6 +125,7 @@ export default function LobbyPage() {
                 size="sm"
                 onClick={() => {
                   localStorage.removeItem("gameData");
+                  localStorage.removeItem("gameDataFileName");
                   setFileName(null);
                 }}
               >
@@ -100,7 +137,7 @@ export default function LobbyPage() {
           {/* Create Room */}
           <Button
             onClick={createRoom}
-            disabled={loading}
+            disabled={loading || !hasGameData}
             className="h-12 text-lg"
           >
             {loading ? "Creating…" : "Create Room"}
