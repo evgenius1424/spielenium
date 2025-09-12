@@ -41,7 +41,7 @@ export const metadata: Metadata = {
     title: "Price Surprise Game",
     description:
       "Ready to test your pricing skills? Compete with friends and strangers in this thrilling online game show where you guess the price of everyday items.",
-    url: "https://price-suprise-spielenium.vercel.app",
+    url: "https://price-surprise-spielenium.vercel.app",
     siteName: "Price Surprise Game",
     locale: "en_US",
     type: "website",
