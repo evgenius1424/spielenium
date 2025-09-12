@@ -10,7 +10,7 @@ controller._
 
 ## ✨ Features (planned)
 
-- 🕹️ **Couch Games** — play anagrams, trivia, guess-the-price, and more
+- 🕹️ **Couch Games** — play anagrams, trivia, price-surprise, and more
 - 📱 **Remote Control** — use any device with a browser as your input field or controller
 - 📺 **Main Display Mode** — connect a big screen for the main game session
 - ⚡ **Turborepo Setup** — structured monorepo for frontend, backend, and game modules

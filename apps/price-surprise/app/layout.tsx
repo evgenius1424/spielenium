@@ -17,7 +17,7 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Guess the Price Game",
+  title: "Price Surprise Game",
   description: "Interactive game show experience with 3 players",
   generator: "v0.app",
 };
