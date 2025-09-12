@@ -112,6 +112,20 @@ export function getRoom(id: string): Room | undefined {
   return rooms.get(id);
 }
 
+function computeAvailableCategories(room: Room): string[] {
+  const categories = Object.entries(gameData.categories) as Array<[
+    string,
+    Item[]
+  ]>;
+  const available: string[] = [];
+  for (const [category, items] of categories) {
+    // A category is available if it has at least one item not used yet
+    const hasUnused = items.some((it) => !room.usedItems.has(it.name));
+    if (hasUnused) available.push(category);
+  }
+  return available;
+}
+
 export function roomToPublic(room: Room): RoomPublic {
   return {
     id: room.id,
@@ -123,7 +137,7 @@ export function roomToPublic(room: Room): RoomPublic {
       name,
       score,
     })),
-    availableCategories: [],
+    availableCategories: computeAvailableCategories(room),
   };
 }
 

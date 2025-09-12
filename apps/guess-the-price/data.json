@@ -2,90 +2,50 @@
   "categories": {
     "Electronics": [
       {
-        "name": "iPhone 15 Pro",
-        "price": 999,
-        "image": "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/iphone-15-pro-finish-select-202309-6-7inch-blue-titanium?wid=5120&hei=2880&fmt=jpeg&qlt=90&.v=1692894501575"
-      },
-      {
-        "name": "MacBook Air M2",
-        "price": 1199,
-        "image": "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/mba15-silver-select-202306?wid=4000&hei=3072&fmt=jpeg&qlt=90&.v=1684340991337"
-      },
-      {
-        "name": "AirPods Pro",
-        "price": 249,
-        "image": "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/MQD83?wid=2000&hei=2000&fmt=jpeg&qlt=90&.v=1660803972361"
-      },
-      {
-        "name": "iPad Pro 12.9\"",
+        "name": "Apple MacBook Air 13-inch (M3)",
         "price": 1099,
-        "image": "https://store.storeimages.cdn-apple.com/4668/as-images.apple.com/is/ipad-pro-12-11-select-202210?wid=445&hei=572&fmt=jpeg&qlt=90&.v=1664411207189"
+        "image": "https://picsum.photos/seed/macbook/800/600"
+      },
+      {
+        "name": "Sony WH-1000XM5 Noise Cancelling Headphones",
+        "price": 348,
+        "image": "https://picsum.photos/seed/sony-headphones/800/600"
       }
     ],
     "Fashion": [
       {
-        "name": "Designer Handbag",
-        "price": 450,
-        "image": "https://cdn-images.farfetch-contents.com/18/06/65/01/18066501_39536158_1000.jpg"
+        "name": "Burberry Trench Coat",
+        "price": 2390,
+        "image": "https://picsum.photos/seed/burberry-coat/800/600"
       },
       {
-        "name": "Luxury Watch",
-        "price": 2500,
-        "image": "https://www.rolex.com/content/dam/rolex-com/new-watches-2021/homepage/new-oyster-perpetual-explorer/homepage-explorer-m124273-0001-hero-portrait.jpg"
-      },
-      {
-        "name": "Silk Scarf",
-        "price": 180,
-        "image": "https://assets.burberry.com/is/image/Burberryltd/2DF94FAE-66F2-41A3-B0A2-76D2AB69F8E0?$BBY_V3_SL_1$&wid=2500&hei=2500"
-      },
-      {
-        "name": "Leather Jacket",
-        "price": 320,
-        "image": "https://images.unsplash.com/photo-1612911659334-df88f3b6d0b3"
+        "name": "UGG Classic Ultra Mini Boots",
+        "price": 150,
+        "image": "https://picsum.photos/seed/ugg-boots/800/600"
       }
     ],
     "Home & Garden": [
       {
-        "name": "Robot Vacuum",
-        "price": 399,
-        "image": "https://i5.walmartimages.com/asr/1d40a2eb-79a3-4f08-8c89-9aebd6d4f258.4c7e4ad4f3e4b8b682e2f2f8a4cf7d46.jpeg"
+        "name": "Le Creuset Enameled Cast Iron Dutch Oven",
+        "price": 420,
+        "image": "https://picsum.photos/seed/dutch-oven/800/600"
       },
       {
-        "name": "Smart Thermostat",
-        "price": 249,
-        "image": "https://images.ctfassets.net/8am6z3616rjz/7wYdHbQGhrA2Rj9J0C3bxr/1b62cfc1c9c44100d441e0c7e528c62d/nest-learning-thermostat-3rd-gen-stainless-steel.jpg"
-      },
-      {
-        "name": "Coffee Machine",
-        "price": 899,
-        "image": "https://www.nespresso.com/ecom/medias/sys_master/public/13422024278046/M-CA-Original-Machine-Creatista-Plus-Silver.jpg"
-      },
-      {
-        "name": "Garden Tool Set",
-        "price": 125,
-        "image": "https://m.media-amazon.com/images/I/81f7Gkq1eIL._AC_SL1500_.jpg"
+        "name": "Weber Spirit II E-310 Gas Grill",
+        "price": 549,
+        "image": "https://picsum.photos/seed/weber-grill/800/600"
       }
     ],
-    "Sports": [
+    "Travel & Leisure": [
       {
-        "name": "Mountain Bike",
-        "price": 1200,
-        "image": "https://www.trekbikes.com/globalassets/marlin-7-mtb-bike.jpg"
+        "name": "Samsonite Omni PC Hardside Expandable Luggage (3-Piece Set)",
+        "price": 499,
+        "image": "https://picsum.photos/seed/samsonite-luggage/800/600"
       },
       {
-        "name": "Tennis Racket",
-        "price": 180,
-        "image": "https://www.wilson.com/sites/default/files/2022-02/WRT74161U_0_ProStaffX14_Main.jpg"
-      },
-      {
-        "name": "Running Shoes",
-        "price": 150,
-        "image": "https://static.nike.com/a/images/t_PDP_1728_v1/f_auto,q_auto:eco/0d924637-d6cf-47c5-b9a4-b0f18dfd1b79/air-zoom-pegasus-40-road-running-shoes-3RR7Jp.png"
-      },
-      {
-        "name": "Yoga Mat Set",
-        "price": 89,
-        "image": "https://lululemon.imgix.net/images/_hero/2021/1111_WO_Accessories_Mats.jpg"
+        "name": "Tumi Alpha Bravo Backpack",
+        "price": 450,
+        "image": "https://picsum.photos/seed/tumi-backpack/800/600"
       }
     ]
   }
