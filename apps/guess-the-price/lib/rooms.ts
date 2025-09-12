@@ -123,7 +123,6 @@ export function roomToPublic(room: Room): RoomPublic {
       name,
       score,
     })),
-    // availableCategories are now determined client-side from client-provided data
     availableCategories: [],
   };
 }

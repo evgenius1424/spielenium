@@ -98,7 +98,7 @@ export default function HostRoom() {
       (i) => !usedItems.has(i.name),
     );
     if (pool.length === 0) return;
-    const item = pool[Math.floor(Math.random() * pool.length)];
+    const item = pool[Math.floor(Math.random() * pool.length)]!;
     const res = await fetch(`/api/rooms/${roomId}/next`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -119,11 +119,25 @@ export default function HostRoom() {
   }
 
   async function nextStep() {
-    await fetch(`/api/rooms/${roomId}/next`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "next" }),
-    });
+    if (!gameData) return;
+
+    const hasRemainingItems = Object.values(gameData.categories).some((items) =>
+      items.some((item) => !usedItems.has(item.name)),
+    );
+
+    if (!hasRemainingItems) {
+      await fetch(`/api/rooms/${roomId}/next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "game-over" }),
+      });
+    } else {
+      await fetch(`/api/rooms/${roomId}/next`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "next" }),
+      });
+    }
   }
 
   if (!room) return <div className="p-6 text-center">Loading room…</div>;

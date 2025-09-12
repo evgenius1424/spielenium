@@ -38,6 +38,8 @@ export async function POST(
   }
 
   // default: move to next state (category-selection or game-over)
+  console.log("Room state before nextStep:", JSON.stringify(room, null, 2));
   nextStep(room);
+  console.log("Room state after nextStep:", JSON.stringify(room, null, 2));
   return NextResponse.json({ ok: true });
 }
