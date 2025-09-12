@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { closeRound, getRoom, nextStep, pickItem } from "@/lib/rooms";
+import { closeRound, endGame, getRoom, nextStep, pickItem } from "@/lib/rooms";
 
 export async function POST(
   req: NextRequest,
@@ -14,7 +14,7 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => ({}) as any);
-  const action = body?.action as "pick" | "close" | "next";
+  const action = body?.action as "pick" | "close" | "next" | "game-over";
 
   if (action === "pick") {
     const category = String(body.category || "");
@@ -34,6 +34,11 @@ export async function POST(
 
   if (action === "close") {
     closeRound(room);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "game-over") {
+    endGame(room);
     return NextResponse.json({ ok: true });
   }
 

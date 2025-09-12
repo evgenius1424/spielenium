@@ -113,7 +113,11 @@ export default function LobbyPage() {
                 size="sm"
                 onClick={() => {
                   try {
-                    if (!demoData || typeof demoData !== "object" || !("categories" in demoData)) {
+                    if (
+                      !demoData ||
+                      typeof demoData !== "object" ||
+                      !("categories" in demoData)
+                    ) {
                       throw new Error("Invalid demo data");
                     }
                     localStorage.setItem("gameData", JSON.stringify(demoData));
@@ -130,7 +134,8 @@ export default function LobbyPage() {
             </div>
             {!hasGameData && (
               <p className="text-xs text-muted-foreground text-center">
-                Upload a JSON file with categories and items to start — or use the demo data.
+                Upload a JSON file with categories and items to start — or use
+                the demo data.
               </p>
             )}
             {fileName && (

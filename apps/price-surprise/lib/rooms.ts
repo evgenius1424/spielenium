@@ -113,10 +113,9 @@ export function getRoom(id: string): Room | undefined {
 }
 
 function computeAvailableCategories(room: Room): string[] {
-  const categories = Object.entries(gameData.categories) as Array<[
-    string,
-    Item[]
-  ]>;
+  const categories = Object.entries(gameData.categories) as Array<
+    [string, Item[]]
+  >;
   const available: string[] = [];
   for (const [category, items] of categories) {
     // A category is available if it has at least one item not used yet
@@ -263,11 +262,18 @@ export function closeRound(room: Room) {
   broadcast(room, { type: "state", payload: roomToPublic(room) });
 }
 
+export function endGame(room: Room) {
+  room.state = "game-over";
+  room.selectedCategory = null;
+  room.currentItem = null;
+  room.roundGuesses.clear();
+  broadcast(room, { type: "state", payload: roomToPublic(room) });
+}
+
 export function nextStep(room: Room) {
   const remainingCategories = roomToPublic(room).availableCategories;
   if (remainingCategories.length === 0) {
-    room.state = "game-over";
-    broadcast(room, { type: "state", payload: roomToPublic(room) });
+    endGame(room);
     return;
   }
   room.state = "category-selection";

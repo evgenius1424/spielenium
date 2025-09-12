@@ -166,9 +166,7 @@ export default function JoinRoom() {
                 )}
                 <div className="text-center">
                   Price of{" "}
-                  <span className="font-semibold">
-                    {room.currentItem.name}
-                  </span>
+                  <span className="font-semibold">{room.currentItem.name}</span>
                   ?
                 </div>
                 <div className="flex gap-2">
