@@ -27,7 +27,7 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
-  apps/guess-the-price:
+  apps/price-surprise:
     dependencies:
       '@repo/ui':
         specifier: workspace:*
