@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@repo/ui/components/card";
 import { Input } from "@repo/ui/components/input";
+import demoData from "../data.json";
 
 export default function LobbyPage() {
   const [loading, setLoading] = useState(false);
@@ -106,9 +107,30 @@ export default function LobbyPage() {
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium">Upload Game Data</label>
             <Input type="file" accept=".json" onChange={handleFileUpload} />
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  try {
+                    if (!demoData || typeof demoData !== "object" || !("categories" in demoData)) {
+                      throw new Error("Invalid demo data");
+                    }
+                    localStorage.setItem("gameData", JSON.stringify(demoData));
+                    localStorage.setItem("gameDataFileName", "data.json");
+                    setFileName("data.json");
+                    setError(null);
+                  } catch (e) {
+                    setError("Failed to load demo data.");
+                  }
+                }}
+              >
+                Load Demo Data
+              </Button>
+            </div>
             {!hasGameData && (
               <p className="text-xs text-muted-foreground text-center">
-                Upload a JSON file with categories and items to start.
+                Upload a JSON file with categories and items to start — or use the demo data.
               </p>
             )}
             {fileName && (
