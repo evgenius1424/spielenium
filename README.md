@@ -2,7 +2,8 @@
 
 [![Build](https://github.com/evgenius1424/spielenium/actions/workflows/build.yml/badge.svg)](https://github.com/evgenius1424/spielenium/actions/workflows/build.yml)
 
-**Spielenium** is a fun playground for creating **couch games** and interactive widgets.  
+**Spielenium** (pronounced shpee-lee-nee-uhm) is a fun playground for creating **couch games** and interactive
+widgets.  
 Think: _one big screen to play on, and everyone else joins in from their phone, tablet, or laptop as a remote
 controller._
 
