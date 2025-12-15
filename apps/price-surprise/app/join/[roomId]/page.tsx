@@ -13,7 +13,7 @@ import { Badge } from "@repo/ui/components/badge";
 
 type GameState = "category-selection" | "guessing" | "results" | "game-over";
 
-type Item = { name: string; price: number; image?: string };
+type Item = { name: string; price: number; image: string; imageAnswer: string };
 
 type Player = { id: string; name: string; score: number };
 
@@ -170,7 +170,7 @@ export default function JoinRoom() {
                   ?
                 </div>
                 <div className="flex gap-2">
-                  <span className="self-center text-xl">$</span>
+                  <span className="self-center text-xl">€</span>
                   <Input
                     type="number"
                     inputMode="decimal"
@@ -190,7 +190,26 @@ export default function JoinRoom() {
                 )}
               </div>
             ) : room.state === "results" ? (
-              <div className="text-center">Check big screen for results…</div>
+              <div className="space-y-3">
+                <div className="text-center">
+                  <Badge variant="secondary" className="mb-2">
+                    {room.selectedCategory}
+                  </Badge>
+                </div>
+                {room.currentItem && (
+                  <div className="mx-auto w-full max-w-sm aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={room.currentItem.imageAnswer}
+                      alt={room.currentItem.name}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <div className="text-center">Check big screen for results…</div>
+                </div>
+              </div>
             ) : room.state === "game-over" ? (
               <div className="text-center font-semibold">
                 Game over. Thanks for playing!

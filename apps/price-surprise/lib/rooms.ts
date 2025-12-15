@@ -10,6 +10,7 @@ export type Player = {
   id: string;
   name: string;
   score: number;
+  voted: boolean;
   lastGuess?: number;
 };
 
@@ -31,23 +32,24 @@ export type ServerEvent =
   | { type: "state"; payload: RoomPublic }
   | { type: "players"; payload: PlayerPublic[] }
   | {
-      type: "guess";
-      payload: { playerId: string; name: string; guess: number };
-    }
+    type: "guess";
+    payload: { playerId: string; name: string; guess: number };
+  }
   | { type: "question"; payload: { category: string; item: Item } }
   | {
-      type: "result";
-      payload: {
-        item: Item;
-        winner: PlayerPublic | null;
-        diffs: Array<{
-          playerId: string;
-          name: string;
-          diff: number;
-          guess?: number;
-        }>;
-      };
+    type: "result";
+    payload: {
+      item: Item;
+      winners: string[];
+      losers: string[];
+      diffs: Array<{
+        playerId: string;
+        name: string;
+        diff: number;
+        guess?: number;
+      }>;
     };
+  };
 
 export type RoomPublic = {
   id: string;
@@ -58,7 +60,7 @@ export type RoomPublic = {
   availableCategories: string[];
 };
 
-export type PlayerPublic = Pick<Player, "id" | "name" | "score">;
+export type PlayerPublic = Pick<Player, "id" | "name" | "score" | "voted">;
 
 const gameData = {
   categories: {
@@ -131,10 +133,11 @@ export function roomToPublic(room: Room): RoomPublic {
     state: room.state,
     selectedCategory: room.selectedCategory,
     currentItem: room.currentItem,
-    players: [...room.players.values()].map(({ id, name, score }) => ({
+    players: [...room.players.values()].map(({ id, name, score, voted }) => ({
       id,
       name,
       score,
+      voted,
     })),
     availableCategories: computeAvailableCategories(room),
   };
@@ -162,17 +165,11 @@ export function joinRoom(room: Room, name: string): PlayerPublic {
     id,
     name: name.trim() || `Player-${id.slice(0, 4)}`,
     score: 0,
+    voted: false,
   };
   room.players.set(id, player);
-  broadcast(room, {
-    type: "players",
-    payload: [...room.players.values()].map(({ id, name, score }) => ({
-      id,
-      name,
-      score,
-    })),
-  });
-  return { id: player.id, name: player.name, score: player.score };
+  broadcast(room, { type: "state", payload: roomToPublic(room) });
+  return { id: player.id, name: player.name, score: player.score, voted: player.voted };
 }
 
 export function pickItem(
@@ -210,32 +207,29 @@ export function submitGuess(room: Room, playerId: string, guess: number) {
   if (!player || !room.currentItem || room.state !== "guessing") return;
   room.roundGuesses.set(playerId, guess);
   player.lastGuess = guess;
+  player.voted = true;
   broadcast(room, {
     type: "guess",
     payload: { playerId, name: player.name, guess },
   });
+  broadcast(room, { type: "state", payload: roomToPublic(room) });
 }
 
 export function closeRound(room: Room) {
   if (!room.currentItem) return;
   const item = room.currentItem!;
-  let winner: Player | null = null;
-  let bestDiff = Number.POSITIVE_INFINITY;
   const diffs: Array<{
     playerId: string;
     name: string;
     diff: number;
     guess?: number;
   }> = [];
+
   for (const p of room.players.values()) {
     const g = room.roundGuesses.get(p.id);
     if (typeof g === "number" && !Number.isNaN(g)) {
       const d = Math.abs(g - item.price);
       diffs.push({ playerId: p.id, name: p.name, diff: d, guess: g });
-      if (d < bestDiff) {
-        bestDiff = d;
-        winner = p;
-      }
     } else {
       diffs.push({
         playerId: p.id,
@@ -244,7 +238,23 @@ export function closeRound(room: Room) {
       });
     }
   }
-  if (winner) winner.score += 1;
+
+  const minDiff = Math.min(...diffs.map((p) => p.diff));
+  const maxDiff = Math.max(...diffs.map((p) => p.diff));
+
+  const winners = diffs
+    .filter((p) => p.diff === minDiff)
+    .map((p) => p.playerId);
+  winners.forEach((i) => room.players.get(i)!!.score++);
+
+  const losers = minDiff == maxDiff
+    ? []
+    : diffs
+      .filter((p) => p.diff === maxDiff)
+      .map((p) => p.playerId);
+  losers.forEach((i) => room.players.get(i)!!.score--);
+
+  room.players.forEach((i) => i.voted = false);
 
   room.usedItems.add(item.name);
 
@@ -253,9 +263,8 @@ export function closeRound(room: Room) {
     type: "result",
     payload: {
       item,
-      winner: winner
-        ? { id: winner.id, name: winner.name, score: winner.score }
-        : null,
+      winners,
+      losers,
       diffs,
     },
   });
