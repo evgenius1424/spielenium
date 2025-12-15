@@ -10,11 +10,15 @@ import {
     CardTitle,
 } from "@repo/ui/components/card";
 import { Badge } from "@repo/ui/components/badge";
-import { Reorder } from "framer-motion";
+import { Reorder, motion, AnimatePresence } from "framer-motion";
+
+// ─────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────
 
 type GameState = "category-selection" | "guessing" | "results" | "game-over";
 
-type Item = { name: string; price: number; image: string, imageAnswer: string };
+type Item = { name: string; price: number; image: string; imageAnswer: string };
 
 type Player = { id: string; name: string; score: number; voted: boolean };
 
@@ -28,11 +32,37 @@ type RoomPublic = {
 };
 
 type Category = {
-    logo: string,
-    items: Item[],
+    logo: string;
+    items: Item[];
 };
 
 type GameData = { categories: Record<string, Category> };
+
+// ─────────────────────────────────────────────────────────────
+// Animation presets
+// ─────────────────────────────────────────────────────────────
+
+const pageFade = {
+    initial: { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -12 },
+    transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+};
+
+const stagger = {
+    animate: {
+        transition: {
+            staggerChildren: 0.08,
+        },
+    },
+};
+
+const pop = {
+    initial: { scale: 0.9, opacity: 0 },
+    animate: { scale: 1, opacity: 1 },
+    exit: { scale: 0.95, opacity: 0 },
+    transition: { type: "spring", stiffness: 260, damping: 20 },
+};
 
 export default function HostRoom() {
     const { roomId } = useParams<{ roomId: string }>();
@@ -117,7 +147,6 @@ export default function HostRoom() {
         });
 
         if (res.ok) {
-            // Optimistically mark as used locally to avoid duplicates
             setUsedItems((prev) => new Set(prev).add(item.name));
         }
     }
@@ -137,19 +166,11 @@ export default function HostRoom() {
             category.items.some((item) => !usedItems.has(item.name)),
         );
 
-        if (!hasRemainingItems) {
-            await fetch(`/api/rooms/${roomId}/next`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "game-over" }),
-            });
-        } else {
-            await fetch(`/api/rooms/${roomId}/next`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "next" }),
-            });
-        }
+        await fetch(`/api/rooms/${roomId}/next`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: hasRemainingItems ? "next" : "game-over" }),
+        });
     }
 
     if (!room) return <div className="p-6 text-center">Loading room…</div>;
@@ -171,25 +192,24 @@ export default function HostRoom() {
     });
 
     return (
-        <div className="min-h-screen p-4 max-w-6xl mx-auto">
+        <motion.div {...pageFade} className="min-h-screen p-4 max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-4">
-                {/* Left side: Logo + Room title */}
                 <div className="flex items-center gap-3">
-                    {/* Logo */}
-                    <img
+                    <motion.img
                         src="/logo.png"
                         alt="Price Surprise"
                         className="h-12 sm:h-14 w-auto"
+                        initial={{ rotate: -5, opacity: 0 }}
+                        animate={{ rotate: 0, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 200 }}
                     />
-
-                    {/* Room title */}
                     <h1 className="text-3xl font-bold">Room {room.id}</h1>
                 </div>
                 <Badge variant="secondary">State: {room.state}</Badge>
             </div>
 
             {/* Scoreboard */}
-            <Card className="mb-6">
+            <Card className="mb-6 overflow-hidden">
                 <CardHeader>
                     <CardTitle>Players</CardTitle>
                 </CardHeader>
@@ -197,7 +217,7 @@ export default function HostRoom() {
                     <Reorder.Group
                         axis="y"
                         values={sorted}
-                        onReorder={(newOrder) => { }}
+                        onReorder={() => { }}
                         className="divide-y"
                     >
                         {sorted.map((p, i) => {
@@ -228,27 +248,26 @@ export default function HostRoom() {
                                 <Reorder.Item
                                     key={p.id}
                                     value={p}
-                                    initial={{ opacity: 0, y: -20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 20 }}
-                                    transition={{ duration: 1.5 }}
-                                    className={`grid grid-cols-[50px_1fr_auto] items-center px-4 py-3 rounded-lg transition-colors ${playerStyle}`}
+                                    {...pop}
+                                    className={`grid grid-cols-[50px_1fr_auto] items-center px-4 py-3 rounded-lg ${playerStyle}`}
                                 >
-                                    {/* Rank, right-aligned */}
                                     <span className="font-semibold text-right pr-3">{displayRank}</span>
-
-                                    {/* Name */}
                                     <span className="font-semibold truncate">{p.name}</span>
-
-                                    {/* Score + Icons */}
                                     <div className="flex items-center gap-2 justify-end">
                                         {room.state === "game-over" && displayMedal}
-                                        {winners.includes(p.id) && <span className="text-yellow-500">🏆</span>}
-                                        {losers.includes(p.id) && <span className="text-red-600">💀</span>}
+                                        {winners.includes(p.id) && <span>🏆</span>}
+                                        {losers.includes(p.id) && <span>💀</span>}
                                         {p.voted && !winners.includes(p.id) && !losers.includes(p.id) && (
-                                            <span className="text-green-600">✅</span>
+                                            <span>✅</span>
                                         )}
-                                        <span className="text-xl font-bold">{p.score}</span>
+                                        <motion.span
+                                            key={p.score}
+                                            initial={{ scale: 1.2 }}
+                                            animate={{ scale: 1 }}
+                                            className="text-xl font-bold"
+                                        >
+                                            {p.score}
+                                        </motion.span>
                                     </div>
                                 </Reorder.Item>
                             );
@@ -257,144 +276,167 @@ export default function HostRoom() {
                 </CardContent>
             </Card>
 
-            {room.state === "category-selection" && (
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle className="text-2xl text-center">
-                            Choose a Category
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {availableCategories.map((cat) => {
-                                const totalItems = gameData?.categories[cat]?.items.length ?? 0;
-                                const usedCount = gameData?.categories[cat]?.items.filter((i) =>
-                                    usedItems.has(i.name)
-                                ).length ?? 0;
-                                const remaining = totalItems - usedCount;
-
-                                return (
-                                    <button
-                                        key={cat}
-                                        onClick={() => pick(cat)}
-                                        className="flex flex-col items-center rounded-xl border hover:bg-accent transition font-medium p-2"
-                                    >
-                                        {/* Logo container */}
-                                        <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-xl mb-2">
-                                            <img
-                                                src={gameData?.categories[cat]?.logo}
-                                                alt={cat}
-                                                className="object-contain h-full w-full"
-                                            />
-                                        </div>
-
-                                        {/* Category name */}
-                                        <span className="text-sm font-medium">{cat}</span>
-
-                                        {/* Remaining items */}
-                                        <span className="text-xs text-muted-foreground">
-                                            {remaining} item{remaining !== 1 ? "s" : ""} left
-                                        </span>
-                                    </button>
-
-                                );
-                            })}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {room.state === "guessing" && room.currentItem && (
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle className="text-center text-2xl">
-                            <Badge variant="secondary" className="mb-2">
-                                {room.selectedCategory}
-                            </Badge>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {room.currentItem.image && (
-                            <div className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                    src={room.currentItem.image}
-                                    alt={room.currentItem.name}
-                                    className="h-full w-full object-contain"
-                                />
-                            </div>
-                        )}
-                        <div className="text-center text-2xl mt-4">
-                            What is the price of{" "}
-                            <span className="text-primary font-bold">
-                                {room.currentItem.name}
-                            </span>
-                            ?
-                        </div>
-                        <p className="text-center text-muted-foreground mt-2">
-                            Players: enter your guesses on your phones. When ready, close the
-                            round.
-                        </p>
-                        <div className="flex justify-center mt-4">
-                            <Button onClick={closeRound} className="h-12 px-8 text-lg">
-                                Close Round
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {room.state === "results" && room.currentItem && (
-                <Card className="mb-6">
-                    <CardHeader>
-                        <CardTitle className="text-center text-2xl">
-                            Round Results
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                                src={room.currentItem.imageAnswer}
-                                alt={room.currentItem.name}
-                                className="h-full w-full object-contain"
-                            />
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            {diffs.map((d) => (
-                                <div
-                                    key={d.playerId}
-                                    className="rounded-xl border p-3 text-center"
+            {/* Game phases */}
+            <AnimatePresence mode="wait">
+                {room.state === "category-selection" && (
+                    <motion.div key="category" {...pageFade}>
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <CardTitle className="text-2xl text-center">
+                                    Choose a Category
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <motion.div
+                                    variants={stagger}
+                                    initial="initial"
+                                    animate="animate"
+                                    className="grid grid-cols-2 md:grid-cols-4 gap-3"
                                 >
-                                    <div className="font-semibold">{d.name}</div>
-                                    {Number.isFinite(d.diff) ? (
-                                        <>
-                                            <div className="text-sm text-muted-foreground">Guess</div>
-                                            <div className="text-xl font-bold">€{d.guess}</div>
-                                            <div className="text-sm">Diff: €{Math.round(d.diff)}</div>
-                                        </>
-                                    ) : (
-                                        <div className="text-muted-foreground">No guess</div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                        <div className="flex justify-center mt-6">
-                            <Button onClick={nextStep} className="h-12 px-8 text-lg">
-                                Next
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                                    {availableCategories.map((cat) => {
+                                        const totalItems = gameData?.categories[cat]?.items.length ?? 0;
+                                        const usedCount = gameData?.categories[cat]?.items.filter((i) =>
+                                            usedItems.has(i.name)
+                                        ).length ?? 0;
+                                        const remaining = totalItems - usedCount;
 
-            {room.state === "game-over" && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-center text-3xl">Game Over</CardTitle>
-                    </CardHeader>
-                </Card>
-            )}
-        </div>
+                                        return (
+                                            <motion.button
+                                                key={cat}
+                                                variants={pop}
+                                                whileHover={{ scale: 1.04 }}
+                                                whileTap={{ scale: 0.97 }}
+                                                onClick={() => pick(cat)}
+                                                className="flex flex-col items-center rounded-xl border hover:bg-accent transition font-medium p-2"
+                                            >
+                                                <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-xl mb-2">
+                                                    <img
+                                                        src={gameData?.categories[cat]?.logo}
+                                                        alt={cat}
+                                                        className="object-contain h-full w-full"
+                                                    />
+                                                </div>
+                                                <span className="text-sm font-medium">{cat}</span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    {remaining} item{remaining !== 1 ? "s" : ""} left
+                                                </span>
+                                            </motion.button>
+                                        );
+                                    })}
+                                </motion.div>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                )}
+
+                {room.state === "guessing" && room.currentItem && (
+                    <motion.div key="guessing" {...pageFade}>
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <CardTitle className="text-center text-2xl">
+                                    <Badge variant="secondary" className="mb-2">
+                                        {room.selectedCategory}
+                                    </Badge>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
+                                >
+                                    <img
+                                        src={room.currentItem.image}
+                                        alt={room.currentItem.name}
+                                        className="h-full w-full object-contain"
+                                    />
+                                </motion.div>
+                                <div className="text-center text-2xl mt-4">
+                                    What is the price of{" "}
+                                    <span className="text-primary font-bold">
+                                        {room.currentItem.name}
+                                    </span>
+                                    ?
+                                </div>
+                                <p className="text-center text-muted-foreground mt-2">
+                                    Players: enter your guesses on your phones.
+                                </p>
+                                <div className="flex justify-center mt-4">
+                                    <Button onClick={closeRound} className="h-12 px-8 text-lg">
+                                        Close Round
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                )}
+
+                {room.state === "results" && room.currentItem && (
+                    <motion.div key="results" {...pageFade}>
+                        <Card className="mb-6">
+                            <CardHeader>
+                                <CardTitle className="text-center text-2xl">
+                                    Round Results
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <motion.div
+                                    initial={{ rotateX: 90 }}
+                                    animate={{ rotateX: 0 }}
+                                    transition={{ duration: 0.5 }}
+                                    className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
+                                >
+                                    <img
+                                        src={room.currentItem.imageAnswer}
+                                        alt={room.currentItem.name}
+                                        className="h-full w-full object-contain"
+                                    />
+                                </motion.div>
+                                <motion.div
+                                    variants={stagger}
+                                    initial="initial"
+                                    animate="animate"
+                                    className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4"
+                                >
+                                    {diffs.map((d) => (
+                                        <motion.div
+                                            key={d.playerId}
+                                            variants={pop}
+                                            className="rounded-xl border p-3 text-center"
+                                        >
+                                            <div className="font-semibold">{d.name}</div>
+                                            {Number.isFinite(d.diff) ? (
+                                                <>
+                                                    <div className="text-sm text-muted-foreground">Guess</div>
+                                                    <div className="text-xl font-bold">€{d.guess}</div>
+                                                    <div className="text-sm">Diff: €{Math.round(d.diff)}</div>
+                                                </>
+                                            ) : (
+                                                <div className="text-muted-foreground">No guess</div>
+                                            )}
+                                        </motion.div>
+                                    ))}
+                                </motion.div>
+                                <div className="flex justify-center mt-6">
+                                    <Button onClick={nextStep} className="h-12 px-8 text-lg">
+                                        Next
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </motion.div>
+                )}
+
+                {room.state === "game-over" && (
+                    <motion.div key="game-over" {...pageFade}>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-center text-3xl">🎉 Game Over 🎉</CardTitle>
+                            </CardHeader>
+                        </Card>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </motion.div>
     );
 }

@@ -10,6 +10,7 @@ import {
 } from "@repo/ui/components/card";
 import { Input } from "@repo/ui/components/input";
 import { Badge } from "@repo/ui/components/badge";
+import { motion, AnimatePresence } from "framer-motion";
 
 type GameState = "category-selection" | "guessing" | "results" | "game-over";
 
@@ -24,6 +25,21 @@ type RoomPublic = {
   currentItem: Item | null;
   players: Player[];
   availableCategories: string[];
+};
+
+// ─────────── Animations ───────────
+const fade = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -12 },
+  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+};
+
+const pop = {
+  initial: { scale: 0.9, opacity: 0 },
+  animate: { scale: 1, opacity: 1 },
+  exit: { scale: 0.95, opacity: 0 },
+  transition: { type: "spring", stiffness: 260, damping: 20 },
 };
 
 export default function JoinRoom() {
@@ -114,110 +130,125 @@ export default function JoinRoom() {
 
   return (
     <div className="min-h-screen p-4 max-w-md mx-auto">
-      {!player ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-center text-2xl">
-              Join Room {roomId}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex gap-2">
-            <Input
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={loading}
-            />
-            <Button onClick={doJoin} disabled={loading || !name.trim()}>
-              {loading ? "Joining..." : "Join"}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-center text-xl">
-              Hello {player.name}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!room ? (
-              <div>Connecting…</div>
-            ) : room.state === "category-selection" ? (
-              <div className="text-center text-muted-foreground">
-                Waiting for host to pick a category…
-              </div>
-            ) : room.state === "guessing" && room.currentItem ? (
-              <div className="space-y-3">
-                <div className="text-center">
-                  <Badge variant="secondary" className="mb-2">
-                    {room.selectedCategory}
-                  </Badge>
-                </div>
-                {room.currentItem.image && (
-                  <div className="mx-auto w-full max-w-sm aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={room.currentItem.image}
-                      alt={room.currentItem.name}
-                      className="h-full w-full object-contain"
-                    />
-                  </div>
-                )}
-                <div className="text-center">
-                  Price of{" "}
-                  <span className="font-semibold">{room.currentItem.name}</span>
-                  ?
-                </div>
-                <div className="flex gap-2">
-                  <span className="self-center text-xl">€</span>
-                  <Input
-                    type="number"
-                    inputMode="decimal"
-                    value={guess}
-                    onChange={(e) => setGuess(e.target.value)}
-                    placeholder="Enter your guess"
-                    disabled={loading}
-                  />
-                  <Button onClick={submit} disabled={loading || !guess.trim()}>
-                    {loading ? "Sending..." : "Send"}
+      <AnimatePresence mode="wait">
+        {!player ? (
+          <motion.div key="join" {...fade}>
+            <Card className="overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-center text-2xl">
+                  Join Room {roomId}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex gap-2">
+                <Input
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={loading}
+                />
+                <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
+                  <Button onClick={doJoin} disabled={loading || !name.trim()}>
+                    {loading ? "Joining..." : "Join"}
                   </Button>
-                </div>
-                {feedback && (
-                  <div className="text-center text-sm text-muted-foreground">
-                    {feedback}
-                  </div>
-                )}
-              </div>
-            ) : room.state === "results" ? (
-              <div className="space-y-3">
-                <div className="text-center">
-                  <Badge variant="secondary" className="mb-2">
-                    {room.selectedCategory}
-                  </Badge>
-                </div>
-                {room.currentItem && (
-                  <div className="mx-auto w-full max-w-sm aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={room.currentItem.imageAnswer}
-                      alt={room.currentItem.name}
-                      className="h-full w-full object-contain"
-                    />
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <div className="text-center">Check big screen for results…</div>
-                </div>
-              </div>
-            ) : room.state === "game-over" ? (
-              <div className="text-center font-semibold">
-                Game over. Thanks for playing!
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
+                </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ) : (
+          <motion.div key="play" {...fade}>
+            <Card className="overflow-hidden">
+              <CardHeader>
+                <CardTitle className="text-center text-xl">
+                  Hello {player.name}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!room ? (
+                  <div className="text-center animate-pulse text-muted-foreground">Connecting…</div>
+                ) : room.state === "category-selection" ? (
+                  <motion.div {...pop} className="text-center text-muted-foreground">
+                    Waiting for host to pick a category…
+                  </motion.div>
+                ) : room.state === "guessing" && room.currentItem ? (
+                  <motion.div {...pop} className="space-y-3">
+                    <div className="text-center">
+                      <Badge variant="secondary" className="mb-2">
+                        {room.selectedCategory}
+                      </Badge>
+                    </div>
+                    {room.currentItem.image && (
+                      <motion.div
+                        {...pop}
+                        className="mx-auto w-full max-w-sm aspect-[4/3] overflow-hidden rounded-lg border bg-muted"
+                      >
+                        <img
+                          src={room.currentItem.image}
+                          alt={room.currentItem.name}
+                          className="h-full w-full object-contain"
+                        />
+                      </motion.div>
+                    )}
+                    <div className="text-center">
+                      Price of <span className="font-semibold">{room.currentItem.name}</span>?
+                    </div>
+                    <div className="flex gap-2">
+                      <span className="self-center text-xl">€</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={guess}
+                        onChange={(e) => setGuess(e.target.value)}
+                        placeholder="Enter your guess"
+                        disabled={loading}
+                      />
+                      <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
+                        <Button onClick={submit} disabled={loading || !guess.trim()}>
+                          {loading ? "Sending..." : "Send"}
+                        </Button>
+                      </motion.div>
+                    </div>
+                    {feedback && (
+                      <motion.div
+                        {...fade}
+                        className="text-center text-sm text-muted-foreground"
+                      >
+                        {feedback}
+                      </motion.div>
+                    )}
+                  </motion.div>
+                ) : room.state === "results" ? (
+                  <motion.div {...pop} className="space-y-3">
+                    <div className="text-center">
+                      <Badge variant="secondary" className="mb-2">
+                        {room.selectedCategory}
+                      </Badge>
+                    </div>
+                    {room.currentItem && (
+                      <motion.div
+                        {...pop}
+                        className="mx-auto w-full max-w-sm aspect-[4/3] overflow-hidden rounded-lg border bg-muted"
+                      >
+                        <img
+                          src={room.currentItem.imageAnswer}
+                          alt={room.currentItem.name}
+                          className="h-full w-full object-contain"
+                        />
+                      </motion.div>
+                    )}
+                    <div className="text-center text-muted-foreground">
+                      Check big screen for results…
+                    </div>
+                  </motion.div>
+                ) : room.state === "game-over" ? (
+                  <motion.div {...pop} className="text-center font-semibold text-2xl">
+                    🎉 Game over. Thanks for playing! 🎉
+                  </motion.div>
+                ) : null}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
