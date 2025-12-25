@@ -1,6 +1,6 @@
-// app/game/[roomId]/page.tsx
 "use client";
-import { useEffect, useMemo, useState } from "react";
+
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -11,32 +11,7 @@ import {
 } from "@repo/ui/components/card";
 import { Badge } from "@repo/ui/components/badge";
 import { Reorder, motion, AnimatePresence } from "framer-motion";
-
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
-
-type GameState = "category-selection" | "guessing" | "results" | "game-over";
-
-type Item = { name: string; price: number; image: string; imageAnswer: string };
-
-type Player = { id: string; name: string; score: number; voted: boolean };
-
-type RoomPublic = {
-  id: string;
-  state: GameState;
-  selectedCategory: string | null;
-  currentItem: Item | null;
-  players: Player[];
-  availableCategories: string[];
-};
-
-type Category = {
-  logo: string;
-  items: Item[];
-};
-
-type GameData = { categories: Record<string, Category> };
+import { RoomPublic, Item, Category } from "@/lib/rooms";
 
 // ─────────────────────────────────────────────────────────────
 // Animation presets
@@ -46,7 +21,7 @@ const pageFade = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -12 },
-  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as any },
 };
 
 const stagger = {
@@ -58,10 +33,9 @@ const stagger = {
 };
 
 const pop = {
-  initial: { scale: 0.9, opacity: 0 },
+  initial: { scale: 0.95, opacity: 0 },
   animate: { scale: 1, opacity: 1 },
   exit: { scale: 0.95, opacity: 0 },
-  transition: { type: "spring", stiffness: 260, damping: 20 },
 };
 
 export default function HostRoom() {
@@ -73,31 +47,10 @@ export default function HostRoom() {
   const [winners, setWinners] = useState<string[]>([]);
   const [losers, setLosers] = useState<string[]>([]);
 
-  const [gameData, setGameData] = useState<GameData | null>(null);
-  const [usedItems, setUsedItems] = useState<Set<string>>(new Set());
+  /* ─────────────────────────────────────────────────────────────
+     SSE subscription
+     ───────────────────────────────────────────────────────────── */
 
-  // Load client-only game data
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("gameData");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object" && parsed.categories) {
-          setGameData(parsed as GameData);
-        }
-      }
-    } catch { }
-  }, []);
-
-  const availableCategories = useMemo(() => {
-    if (!gameData) return [] as string[];
-    const categories = Object.keys(gameData.categories || {});
-    return categories.filter((category) =>
-      (gameData.categories[category]?.items || []).some((i) => !usedItems.has(i.name)),
-    );
-  }, [gameData, usedItems]);
-
-  // SSE subscription
   useEffect(() => {
     const es = new EventSource(`/api/rooms/${roomId}/events`);
 
@@ -116,12 +69,7 @@ export default function HostRoom() {
         item: Item;
         winners: string[];
         losers: string[];
-        diffs: Array<{
-          playerId: string;
-          name: string;
-          diff: number;
-          guess?: number;
-        }>;
+        diffs: typeof diffs;
       };
       setDiffs(payload.diffs);
       setWinners(payload.winners);
@@ -131,24 +79,20 @@ export default function HostRoom() {
     return () => es.close();
   }, [roomId]);
 
-  async function pick(category: string) {
-    if (!gameData) return;
-    const pool = (gameData.categories[category]?.items || []).filter(
-      (i) => !usedItems.has(i.name),
-    );
+  /* ─────────────────────────────────────────────────────────────
+     Actions
+     ───────────────────────────────────────────────────────────── */
 
-    if (pool.length === 0) return;
-    const item = pool[Math.floor(Math.random() * pool.length)]!;
-
+  async function pick(category: Category) {
     const res = await fetch(`/api/rooms/${roomId}/next`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "pick", category, item }),
+      body: JSON.stringify({
+        action: "pick",
+        category,
+      }),
     });
-
-    if (res.ok) {
-      setUsedItems((prev) => new Set(prev).add(item.name));
-    }
+    if (!res.ok) console.error("Pick failed");
   }
 
   async function closeRound() {
@@ -160,16 +104,12 @@ export default function HostRoom() {
   }
 
   async function nextStep() {
-    if (!gameData) return;
-
-    const hasRemainingItems = Object.values(gameData.categories).some((category) =>
-      category.items.some((item) => !usedItems.has(item.name)),
-    );
-
     await fetch(`/api/rooms/${roomId}/next`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: hasRemainingItems ? "next" : "game-over" }),
+      body: JSON.stringify({
+        action: room?.categories.length ? "next" : "game-over",
+      }),
     });
   }
 
@@ -293,32 +233,28 @@ export default function HostRoom() {
                   animate="animate"
                   className="grid grid-cols-2 md:grid-cols-4 gap-3"
                 >
-                  {availableCategories.map((cat) => {
-                    const totalItems = gameData?.categories[cat]?.items.length ?? 0;
-                    const usedCount = gameData?.categories[cat]?.items.filter((i) =>
-                      usedItems.has(i.name)
-                    ).length ?? 0;
-                    const remaining = totalItems - usedCount;
+                  {room.categories.map((category) => {
+                    const totalItems = category.items.length ?? 0;
 
                     return (
                       <motion.button
-                        key={cat}
+                        key={category.name}
                         variants={pop}
                         whileHover={{ scale: 1.04 }}
                         whileTap={{ scale: 0.97 }}
-                        onClick={() => pick(cat)}
+                        onClick={() => pick(category)}
                         className="flex flex-col items-center rounded-xl border hover:bg-accent transition font-medium p-2"
                       >
                         <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-xl mb-2">
                           <img
-                            src={gameData?.categories[cat]?.logo}
-                            alt={cat}
+                            src={category.logo}
+                            alt={category.name}
                             className="object-contain h-full w-full"
                           />
                         </div>
-                        <span className="text-sm font-medium">{cat}</span>
+                        <span className="text-sm font-medium">{category.name}</span>
                         <span className="text-xs text-muted-foreground">
-                          {remaining} item{remaining !== 1 ? "s" : ""} left
+                          {totalItems} item{totalItems !== 1 ? "s" : ""} left
                         </span>
                       </motion.button>
                     );
@@ -335,7 +271,7 @@ export default function HostRoom() {
               <CardHeader>
                 <CardTitle className="text-center text-2xl">
                   <Badge variant="secondary" className="mb-2">
-                    {room.selectedCategory}
+                    {room.selectedCategory?.name}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -392,6 +328,17 @@ export default function HostRoom() {
                     className="h-full w-full object-contain"
                   />
                 </motion.div>
+                <div className="text-center text-2xl mt-4">
+                  The price of{" "}
+                  <span className="text-primary font-bold">
+                    {room.currentItem.name}
+                  </span>
+                  {" is "}
+                  <span className="text-primary font-bold">
+                    {room.currentItem.price}
+                  </span>
+                  !
+                </div>
                 <motion.div
                   variants={stagger}
                   initial="initial"

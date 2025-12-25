@@ -75,10 +75,17 @@ export default function LobbyPage() {
     }
     try {
       setLoading(true);
-      const res = await fetch("/api/rooms", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to create room");
-      router.push(`/game/${data.id}`);
+      const data = JSON.parse(raw);
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: data.categories }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result?.error || "Failed to create room");
+
+      router.push(`/game/${result.id}`);
     } finally {
       setLoading(false);
     }

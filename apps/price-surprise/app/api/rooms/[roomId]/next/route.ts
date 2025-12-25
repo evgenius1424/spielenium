@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { closeRound, endGame, getRoom, nextStep, pickItem } from "@/lib/rooms";
+import { endGame, closeRound, getRoom, nextStep, pickItem } from "@/lib/rooms";
 
 export async function POST(
   req: NextRequest,
@@ -17,10 +17,7 @@ export async function POST(
   const action = body?.action as "pick" | "close" | "next" | "game-over";
 
   if (action === "pick") {
-    const category = String(body.category || "");
-    // Allow client to provide the specific item to keep full dataset client-only
-    const item = body?.item as { name: string; price: number } | undefined;
-    const picked = pickItem(room, category, item as any);
+    const picked = pickItem(room, body.category, body.item);
 
     if (!picked) {
       return NextResponse.json(

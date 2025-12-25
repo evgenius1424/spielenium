@@ -6,7 +6,7 @@ export type GameState =
   | "results"
   | "game-over";
 
-export type Player = {
+type Player = {
   id: string;
   name: string;
   score: number;
@@ -14,18 +14,40 @@ export type Player = {
   lastGuess?: number;
 };
 
-export type Item = { name: string; price: number; image?: string };
+export type PlayerPublic = Pick<Player, "id" | "name" | "score" | "voted">;
 
-export type Room = {
+export type Item = {
+  name: string;
+  price: number;
+  image?: string;
+  imageAnswer?: string;
+};
+
+type Room = {
   id: string;
   createdAt: number;
   state: GameState;
-  selectedCategory: string | null;
+  categories: Category[];
+  selectedCategory: Category | null;
   currentItem: Item | null;
-  usedItems: Set<string>;
   players: Map<string, Player>;
-  roundGuesses: Map<string, number>; // playerId -> guess
+  playerIdToGuess: Map<string, number>;
   subscribers: Set<(event: ServerEvent) => void>;
+};
+
+export type RoomPublic = {
+  id: string;
+  state: GameState;
+  categories: Category[];
+  selectedCategory: Category | null;
+  currentItem: Item | null;
+  players: PlayerPublic[];
+};
+
+export type Category = {
+  name: string,
+  logo: string;
+  items: Item[];
 };
 
 export type ServerEvent =
@@ -51,59 +73,19 @@ export type ServerEvent =
     };
   };
 
-export type RoomPublic = {
-  id: string;
-  state: GameState;
-  selectedCategory: string | null;
-  currentItem: Item | null;
-  players: PlayerPublic[];
-  availableCategories: string[];
-};
-
-export type PlayerPublic = Pick<Player, "id" | "name" | "score" | "voted">;
-
-const gameData = {
-  categories: {
-    Electronics: [
-      { name: "iPhone 15 Pro", price: 999 },
-      { name: "MacBook Air M2", price: 1199 },
-      { name: "AirPods Pro", price: 249 },
-      { name: 'iPad Pro 12.9"', price: 1099 },
-    ],
-    Fashion: [
-      { name: "Designer Handbag", price: 450 },
-      { name: "Luxury Watch", price: 2500 },
-      { name: "Silk Scarf", price: 180 },
-      { name: "Leather Jacket", price: 320 },
-    ],
-    "Home & Garden": [
-      { name: "Robot Vacuum", price: 399 },
-      { name: "Smart Thermostat", price: 249 },
-      { name: "Coffee Machine", price: 899 },
-      { name: "Garden Tool Set", price: 125 },
-    ],
-    Sports: [
-      { name: "Mountain Bike", price: 1200 },
-      { name: "Tennis Racket", price: 180 },
-      { name: "Running Shoes", price: 150 },
-      { name: "Yoga Mat Set", price: 89 },
-    ],
-  },
-};
-
 const rooms = new Map<string, Room>();
 
-export function createRoom(): RoomPublic {
+export function createRoom(categories: Category[]): RoomPublic {
   const id = randomUUID().slice(0, 6).toUpperCase();
   const room: Room = {
     id,
     createdAt: Date.now(),
     state: "category-selection",
+    categories,
     selectedCategory: null,
     currentItem: null,
-    usedItems: new Set(),
     players: new Map(),
-    roundGuesses: new Map(),
+    playerIdToGuess: new Map(),
     subscribers: new Set(),
   };
   rooms.set(id, room);
@@ -114,23 +96,11 @@ export function getRoom(id: string): Room | undefined {
   return rooms.get(id);
 }
 
-function computeAvailableCategories(room: Room): string[] {
-  const categories = Object.entries(gameData.categories) as Array<
-    [string, Item[]]
-  >;
-  const available: string[] = [];
-  for (const [category, items] of categories) {
-    // A category is available if it has at least one item not used yet
-    const hasUnused = items.some((it) => !room.usedItems.has(it.name));
-    if (hasUnused) available.push(category);
-  }
-  return available;
-}
-
 export function roomToPublic(room: Room): RoomPublic {
   return {
     id: room.id,
     state: room.state,
+    categories: room.categories,
     selectedCategory: room.selectedCategory,
     currentItem: room.currentItem,
     players: [...room.players.values()].map(({ id, name, score, voted }) => ({
@@ -139,7 +109,6 @@ export function roomToPublic(room: Room): RoomPublic {
       score,
       voted,
     })),
-    availableCategories: computeAvailableCategories(room),
   };
 }
 
@@ -174,27 +143,22 @@ export function joinRoom(room: Room, name: string): PlayerPublic {
 
 export function pickItem(
   room: Room,
-  category: string,
+  category: Category,
   itemOverride?: Item,
-): { category: string; item: Item } | null {
+): { category: Category; item: Item } | null {
   let item: Item | undefined = itemOverride;
 
   if (!item) {
-    const items = (gameData.categories as any)[category] as Item[] | undefined;
-    if (!items) return null;
-    const available = items.filter((i) => !room.usedItems.has(i.name));
-    if (available.length === 0) return null;
-    item = available[Math.floor(Math.random() * available.length)];
-  } else {
-    // If client provided the item, ensure it's not already used
-    if (room.usedItems.has(item.name)) return null;
+    const items = category.items;
+    if (items.length === 0) return null;
+    item = items[Math.floor(Math.random() * items.length)];
   }
 
   room.selectedCategory = category;
   // @ts-ignore
   room.currentItem = item;
   room.state = "guessing";
-  room.roundGuesses.clear();
+  room.playerIdToGuess.clear();
   // @ts-ignore
   broadcast(room, { type: "question", payload: { category, item } });
   broadcast(room, { type: "state", payload: roomToPublic(room) });
@@ -205,7 +169,7 @@ export function pickItem(
 export function submitGuess(room: Room, playerId: string, guess: number) {
   const player = room.players.get(playerId);
   if (!player || !room.currentItem || room.state !== "guessing") return;
-  room.roundGuesses.set(playerId, guess);
+  room.playerIdToGuess.set(playerId, guess);
   player.lastGuess = guess;
   player.voted = true;
   broadcast(room, {
@@ -216,8 +180,9 @@ export function submitGuess(room: Room, playerId: string, guess: number) {
 }
 
 export function closeRound(room: Room) {
-  if (!room.currentItem) return;
-  const item = room.currentItem!;
+  if (!room.currentItem || !room.selectedCategory) return;
+  const item = room.currentItem;
+
   const diffs: Array<{
     playerId: string;
     name: string;
@@ -226,7 +191,7 @@ export function closeRound(room: Room) {
   }> = [];
 
   for (const p of room.players.values()) {
-    const g = room.roundGuesses.get(p.id);
+    const g = room.playerIdToGuess.get(p.id);
     if (typeof g === "number" && !Number.isNaN(g)) {
       const d = Math.abs(g - item.price);
       diffs.push({ playerId: p.id, name: p.name, diff: d, guess: g });
@@ -245,20 +210,40 @@ export function closeRound(room: Room) {
   const winners = diffs
     .filter((p) => p.diff === minDiff)
     .map((p) => p.playerId);
-  winners.forEach((i) => room.players.get(i)!!.score++);
 
-  const losers = minDiff == maxDiff
-    ? []
-    : diffs
-      .filter((p) => p.diff === maxDiff)
-      .map((p) => p.playerId);
-  losers.forEach((i) => room.players.get(i)!!.score--);
+  winners.forEach((id) => {
+    const player = room.players.get(id);
+    if (player) player.score++;
+  });
 
-  room.players.forEach((i) => i.voted = false);
+  const losers =
+    minDiff === maxDiff
+      ? []
+      : diffs
+        .filter((p) => p.diff === maxDiff)
+        .map((p) => p.playerId);
 
-  room.usedItems.add(item.name);
+  losers.forEach((id) => {
+    const player = room.players.get(id);
+    if (player) player.score--;
+  });
 
+  // reset voted flags
+  room.players.forEach((p) => (p.voted = false));
+
+  // remove item from category
+  const category = room.categories.find((category) => category.name == room.selectedCategory?.name)!;
+  category.items = category.items.filter((i) => i.name !== item.name);
+
+  // remove category if empty
+  if (category.items.length === 0) {
+    room.categories = room.categories.filter((c) => c !== category);
+  }
+
+  room.selectedCategory = null;
+  room.playerIdToGuess.clear();
   room.state = "results";
+
   broadcast(room, {
     type: "result",
     payload: {
@@ -268,26 +253,30 @@ export function closeRound(room: Room) {
       diffs,
     },
   });
-  broadcast(room, { type: "state", payload: roomToPublic(room) });
+
+  broadcast(room, {
+    type: "state",
+    payload: roomToPublic(room),
+  });
 }
 
 export function endGame(room: Room) {
   room.state = "game-over";
   room.selectedCategory = null;
   room.currentItem = null;
-  room.roundGuesses.clear();
+  room.playerIdToGuess.clear();
   broadcast(room, { type: "state", payload: roomToPublic(room) });
 }
 
 export function nextStep(room: Room) {
-  const remainingCategories = roomToPublic(room).availableCategories;
-  if (remainingCategories.length === 0) {
+  if (room.categories.length === 0) {
     endGame(room);
     return;
   }
+
   room.state = "category-selection";
   room.selectedCategory = null;
   room.currentItem = null;
-  room.roundGuesses.clear();
+  room.playerIdToGuess.clear();
   broadcast(room, { type: "state", payload: roomToPublic(room) });
 }
