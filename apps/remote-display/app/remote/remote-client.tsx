@@ -12,10 +12,10 @@ type ContentItem = {
     id: string;
     name: string;
     type: "image" | "video";
-    url: string;
-    thumbnail?: string;
+    data: string; // base64 encoded data or URL
+    mimeType: string;
     size: number;
-    uploadedAt: string;
+    uploadedAt: Date;
 };
 
 type SessionState = {
@@ -80,10 +80,10 @@ function RemoteControlContent() {
     });
 
     const selectContent = async (item: ContentItem) => {
-        const response = await fetch(`/api/sessions/${sessionId}/select`, {
+        const response = await fetch(`/api/sessions/${sessionId}/display`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ contentId: item.id, type: item.type, url: item.url, name: item.name }),
+            body: JSON.stringify({ contentId: item.id }),
         });
         if (response.ok) {
             setSession((prev) => ({ ...prev, currentlyDisplayed: item.id }));
@@ -91,7 +91,7 @@ function RemoteControlContent() {
     };
 
     const clearDisplay = async () => {
-        await fetch(`/api/sessions/${sessionId}/clear`, { method: "POST" });
+        await fetch(`/api/sessions/${sessionId}/display`, { method: "DELETE" });
         setSession((prev) => ({ ...prev, currentlyDisplayed: null }));
     };
 
@@ -112,7 +112,7 @@ function RemoteControlContent() {
             const formData = new FormData();
             formData.append("file", file);
 
-            const response = await fetch(`/api/sessions/${sessionId}/upload`, {
+            const response = await fetch(`/api/sessions/${sessionId}/content`, {
                 method: "POST",
                 body: formData,
             });
@@ -163,6 +163,7 @@ function RemoteControlContent() {
                     isUploading={isUploading}
                     onSelect={selectContent}
                     onUploadClick={handleUploadClick}
+                    sessionId={sessionId}
                 />
             </div>
 
@@ -326,6 +327,7 @@ type ContentDisplayProps = {
     isUploading: boolean;
     onSelect: (item: ContentItem) => void;
     onUploadClick: () => void;
+    sessionId: string;
 };
 
 function ContentDisplay({
@@ -336,6 +338,7 @@ function ContentDisplay({
                             isUploading,
                             onSelect,
                             onUploadClick,
+                            sessionId,
                         }: ContentDisplayProps) {
     if (!hasContent) {
         return (
@@ -360,9 +363,9 @@ function ContentDisplay({
     }
 
     return viewMode === "grid" ? (
-        <ContentGrid items={filteredContent} currentlyDisplayed={currentlyDisplayed} onSelect={onSelect} />
+        <ContentGrid items={filteredContent} currentlyDisplayed={currentlyDisplayed} onSelect={onSelect} sessionId={sessionId} />
     ) : (
-        <ContentList items={filteredContent} currentlyDisplayed={currentlyDisplayed} onSelect={onSelect} />
+        <ContentList items={filteredContent} currentlyDisplayed={currentlyDisplayed} onSelect={onSelect} sessionId={sessionId} />
     );
 }
 
@@ -370,9 +373,10 @@ type ContentViewProps = {
     items: ContentItem[];
     currentlyDisplayed: string | null;
     onSelect: (item: ContentItem) => void;
+    sessionId: string;
 };
 
-function ContentGrid({ items, currentlyDisplayed, onSelect }: ContentViewProps) {
+function ContentGrid({ items, currentlyDisplayed, onSelect, sessionId }: ContentViewProps) {
     return (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {items.map((item) => (
@@ -385,7 +389,7 @@ function ContentGrid({ items, currentlyDisplayed, onSelect }: ContentViewProps) 
                 >
                     <CardContent className="p-3">
                         <div className="aspect-square mb-2 rounded-md overflow-hidden bg-muted flex items-center justify-center">
-                            <MediaThumbnail item={item} size="lg" />
+                            <MediaThumbnail item={item} size="lg" sessionId={sessionId} />
                         </div>
                         <p className="text-sm font-medium truncate">{item.name}</p>
                         <ContentMeta item={item} />
@@ -396,7 +400,7 @@ function ContentGrid({ items, currentlyDisplayed, onSelect }: ContentViewProps) 
     );
 }
 
-function ContentList({ items, currentlyDisplayed, onSelect }: ContentViewProps) {
+function ContentList({ items, currentlyDisplayed, onSelect, sessionId }: ContentViewProps) {
     return (
         <div className="space-y-2">
             {items.map((item) => (
@@ -410,7 +414,7 @@ function ContentList({ items, currentlyDisplayed, onSelect }: ContentViewProps) 
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-md overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
-                                <MediaThumbnail item={item} size="sm" />
+                                <MediaThumbnail item={item} size="sm" sessionId={sessionId} />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="font-medium truncate">{item.name}</p>
@@ -424,17 +428,21 @@ function ContentList({ items, currentlyDisplayed, onSelect }: ContentViewProps) 
     );
 }
 
-function MediaThumbnail({ item, size }: { item: ContentItem; size: "sm" | "lg" }) {
+function MediaThumbnail({ item, size, sessionId }: { item: ContentItem; size: "sm" | "lg"; sessionId: string }) {
     const iconSize = size === "lg" ? "w-8 h-8" : "w-6 h-6";
 
-    if (item.type === "image" && item.thumbnail) {
+    if (item.type === "image") {
         return (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={item.thumbnail} alt={item.name} className="w-full h-full object-cover" />
+            <img
+                src={`/api/sessions/${sessionId}/content/${item.id}`}
+                alt={item.name}
+                className="w-full h-full object-cover"
+            />
         );
     }
 
-    const Icon = item.type === "image" ? Image : Video;
+    const Icon = item.type === "video" ? Video : Image;
     return <Icon className={`${iconSize} text-muted-foreground`} />;
 }
 

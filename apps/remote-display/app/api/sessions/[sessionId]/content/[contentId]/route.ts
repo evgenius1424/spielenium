@@ -1,19 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile } from "fs/promises";
 import { getSession } from "@/lib/sessions";
-
-const CONTENT_TYPES: Record<string, string> = {
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".gif": "image/gif",
-  ".webp": "image/webp",
-  ".bmp": "image/bmp",
-  ".mp4": "video/mp4",
-  ".webm": "video/webm",
-  ".mov": "video/quicktime",
-  ".avi": "video/x-msvideo",
-};
 
 type RouteParams = {
   params: Promise<{ sessionId: string; contentId: string }>;
@@ -22,7 +8,7 @@ type RouteParams = {
 export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { sessionId, contentId } = await params;
 
-  const session = await getSession(sessionId);
+  const session = getSession(sessionId);
   if (!session) {
     return NextResponse.json({ error: "Session not found" }, { status: 404 });
   }
@@ -32,26 +18,23 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: "Content not found" }, { status: 404 });
   }
 
-  if (content.url.startsWith("http")) {
-    return NextResponse.redirect(content.url);
+  // For URL content (from JSON files), redirect to the URL
+  if (content.data.startsWith("http")) {
+    return NextResponse.redirect(content.data);
   }
 
-  const filePath = content.originalPath || content.url;
-
+  // For base64 content, decode and serve with proper Content-Type
   try {
-    const fileBuffer = await readFile(filePath);
-    return new NextResponse(Uint8Array.from(fileBuffer), {
+    const buffer = Buffer.from(content.data, "base64");
+
+    return new Response(buffer, {
       headers: {
-        "Content-Type": getContentType(filePath),
-        "Cache-Control": "public, max-age=31536000",
+        "Content-Type": content.mimeType,
+        "Content-Length": buffer.length.toString(),
+        "Cache-Control": "public, max-age=31536000, immutable",
       },
     });
-  } catch {
-    return NextResponse.json({ error: "File not found" }, { status: 404 });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to decode content" }, { status: 500 });
   }
-}
-
-function getContentType(filePath: string): string {
-  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
-  return CONTENT_TYPES[ext] ?? "application/octet-stream";
 }

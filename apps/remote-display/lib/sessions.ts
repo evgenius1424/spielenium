@@ -1,307 +1,366 @@
 import { randomUUID } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
-
-export type ContentType = "image" | "video" | "none";
+import AdmZip from "adm-zip";
 
 export type ContentItem = {
   id: string;
   name: string;
-  type: ContentType;
-  url: string;
-  thumbnail?: string;
+  type: "image" | "video";
+  data: string; // base64 encoded
+  mimeType: string;
   size: number;
-  uploadedAt: string;
-  originalPath?: string;
+  uploadedAt: Date;
 };
 
-export type DisplaySession = {
+export type Session = {
   id: string;
-  createdAt: number;
-  currentContent: ContentItem | null;
   contentLibrary: Map<string, ContentItem>;
-  connectedDevices: Set<string>;
-  subscribers: Set<(event: ServerEvent) => void>;
+  currentlyDisplayed: string | null;
+  subscribers: Set<(event: SSEEvent) => void>;
+  lastActivity: Date;
 };
 
-export type ServerEvent =
-  | { type: "session-state"; payload: DisplaySessionPublic }
+export type SSEEvent =
+  | { type: "session-state"; payload: SessionStatePayload }
   | { type: "content-list"; payload: ContentItem[] }
-  | {
-      type: "content-selected";
-      payload: {
-        type: ContentType;
-        url: string;
-        name: string;
-      };
-    }
-  | { type: "content-cleared"; payload: {} }
-  | { type: "device-connected"; payload: { deviceId: string } }
-  | { type: "device-disconnected"; payload: { deviceId: string } };
+  | { type: "content-selected"; payload: { type: string; url: string; name: string } }
+  | { type: "content-cleared"; payload: {} };
 
-export type DisplaySessionPublic = {
+export type SessionStatePayload = {
   id: string;
-  state: "waiting" | "showing-content" | "error";
-  currentContent: ContentItem | null;
-  connectedDevices: number;
   hasContent: boolean;
+  currentlyDisplayed: string | null;
+  connectedDevices: number;
 };
 
-const sessions = new Map<string, DisplaySession>();
-const SESSION_DIR = join(tmpdir(), "remote-display-sessions");
+// Constants
+const IMAGE_FORMATS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+const VIDEO_FORMATS = [".mp4", ".webm", ".mov", ".avi"];
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_SESSION_SIZE = 200 * 1024 * 1024; // 200MB
 
-// Simple file-based session storage for persistence across API routes
-async function saveSession(session: DisplaySession) {
-  try {
-    await mkdir(SESSION_DIR, { recursive: true });
-    const sessionFile = join(SESSION_DIR, `${session.id}.json`);
+// In-memory storage
+const sessions = new Map<string, Session>();
+const cleanupTimers = new Map<string, NodeJS.Timeout>();
 
-    // Convert session to serializable format
-    const sessionData = {
-      id: session.id,
-      createdAt: session.createdAt,
-      currentContent: session.currentContent,
-      contentLibrary: Array.from(session.contentLibrary.entries()),
-      connectedDevices: Array.from(session.connectedDevices),
+// Session management
+export function getOrCreateSession(sessionId: string): Session {
+  let session = sessions.get(sessionId);
+  if (!session) {
+    session = {
+      id: sessionId,
+      contentLibrary: new Map(),
+      currentlyDisplayed: null,
+      subscribers: new Set(),
+      lastActivity: new Date(),
     };
-
-    await writeFile(sessionFile, JSON.stringify(sessionData), "utf8");
-  } catch (error) {
-    console.error("Failed to save session:", error);
+    sessions.set(sessionId, session);
+    cancelCleanup(sessionId);
   }
+  session.lastActivity = new Date();
+  return session;
 }
 
-async function loadSession(sessionId: string): Promise<DisplaySession | null> {
-  try {
-    const sessionFile = join(SESSION_DIR, `${sessionId}.json`);
-    const data = await readFile(sessionFile, "utf8");
-    const sessionData = JSON.parse(data);
-
-    // Reconstruct session object
-    const session: DisplaySession = {
-      id: sessionData.id,
-      createdAt: sessionData.createdAt,
-      currentContent: sessionData.currentContent,
-      contentLibrary: new Map(sessionData.contentLibrary),
-      connectedDevices: new Set(sessionData.connectedDevices),
-      subscribers: new Set(), // Subscribers are not persisted
-    };
-
-    return session;
-  } catch (error) {
-    // Session file doesn't exist or is invalid
-    return null;
+export function getSession(sessionId: string): Session | undefined {
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.lastActivity = new Date();
   }
+  return session;
 }
 
-async function loadAllSessions(): Promise<DisplaySession[]> {
-  try {
-    await mkdir(SESSION_DIR, { recursive: true });
-    const fs = await import("fs/promises");
-    const files = await fs.readdir(SESSION_DIR);
-    const sessionFiles = files.filter((f) => f.endsWith(".json"));
-
-    const sessionsPromises = sessionFiles.map(async (file) => {
-      const sessionId = file.replace(".json", "");
-      return loadSession(sessionId);
-    });
-
-    const loadedSessions = await Promise.all(sessionsPromises);
-    return loadedSessions.filter((s): s is DisplaySession => s !== null);
-  } catch (error) {
-    return [];
-  }
-}
-
-export async function createSession(
-  customId?: string,
-): Promise<DisplaySessionPublic> {
-  const id = customId || randomUUID().slice(0, 6).toUpperCase();
-
-  // Check if session exists in memory first
-  if (sessions.has(id)) {
-    return sessionToPublic(sessions.get(id)!);
-  }
-
-  // Check if session exists on disk
-  const existingSession = await loadSession(id);
-  if (existingSession) {
-    sessions.set(id, existingSession);
-    return sessionToPublic(existingSession);
-  }
-
-  // Create new session
-  const session: DisplaySession = {
-    id,
-    createdAt: Date.now(),
-    currentContent: null,
-    contentLibrary: new Map(),
-    connectedDevices: new Set(),
-    subscribers: new Set(),
-  };
-
-  sessions.set(id, session);
-  await saveSession(session);
-  return sessionToPublic(session);
-}
-
-export async function getSession(
-  id: string,
-): Promise<DisplaySession | undefined> {
-  // Check memory first
-  const memorySession = sessions.get(id);
-  if (memorySession) {
-    return memorySession;
-  }
-
-  // Check file storage
-  const fileSession = await loadSession(id);
-  if (fileSession) {
-    sessions.set(id, fileSession);
-    return fileSession;
-  }
-
-  return undefined;
-}
-
-export async function getAllSessions(): Promise<DisplaySession[]> {
-  // Load all sessions from disk and merge with memory
-  const fileSessions = await loadAllSessions();
-  const allSessions = new Map<string, DisplaySession>();
-
-  // Add file sessions
-  fileSessions.forEach((session) => {
-    allSessions.set(session.id, session);
-  });
-
-  // Add/overwrite with memory sessions (they might be more up-to-date)
-  sessions.forEach((session, id) => {
-    allSessions.set(id, session);
-  });
-
-  return Array.from(allSessions.values());
-}
-
-export function sessionToPublic(session: DisplaySession): DisplaySessionPublic {
-  return {
-    id: session.id,
-    state: session.currentContent ? "showing-content" : "waiting",
-    currentContent: session.currentContent,
-    connectedDevices: session.connectedDevices.size,
-    hasContent: session.contentLibrary.size > 0,
-  };
-}
-
-export function subscribe(
-  session: DisplaySession,
-  deviceId: string,
-  cb: (e: ServerEvent) => void,
-) {
-  session.subscribers.add(cb);
-  session.connectedDevices.add(deviceId);
+// Subscription management
+export function subscribe(session: Session, callback: (event: SSEEvent) => void): () => void {
+  session.subscribers.add(callback);
+  session.lastActivity = new Date();
+  cancelCleanup(session.id);
 
   // Send initial state
-  cb({ type: "session-state", payload: sessionToPublic(session) });
-  cb({
-    type: "content-list",
-    payload: Array.from(session.contentLibrary.values()),
-  });
+  const sessionState: SessionStatePayload = {
+    id: session.id,
+    hasContent: session.contentLibrary.size > 0,
+    currentlyDisplayed: session.currentlyDisplayed,
+    connectedDevices: session.subscribers.size,
+  };
 
-  // Broadcast device connection
-  broadcast(session, { type: "device-connected", payload: { deviceId } });
+  callback({ type: "session-state", payload: sessionState });
+  callback({ type: "content-list", payload: Array.from(session.contentLibrary.values()) });
 
+  // Return unsubscribe function
   return () => {
-    session.subscribers.delete(cb);
-    session.connectedDevices.delete(deviceId);
-    broadcast(session, { type: "device-disconnected", payload: { deviceId } });
+    session.subscribers.delete(callback);
+    session.lastActivity = new Date();
+
+    // Schedule cleanup if no subscribers remain
+    if (session.subscribers.size === 0) {
+      scheduleCleanup(session.id);
+    }
   };
 }
 
-function broadcast(session: DisplaySession, e: ServerEvent) {
-  for (const cb of session.subscribers) {
+export function broadcast(session: Session, event: SSEEvent): void {
+  session.lastActivity = new Date();
+  for (const callback of session.subscribers) {
     try {
-      cb(e);
-    } catch {
-      /* ignore */
+      callback(event);
+    } catch (error) {
+      // Ignore subscriber errors
     }
   }
 }
 
-export async function selectContent(
-  session: DisplaySession,
-  contentId: string,
-): Promise<boolean> {
-  const content = session.contentLibrary.get(contentId);
-  if (!content) return false;
+// Content management
+export async function addContent(session: Session, file: File): Promise<ContentItem> {
+  session.lastActivity = new Date();
 
-  session.currentContent = content;
-  await saveSession(session);
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File size (${formatFileSize(file.size)}) exceeds maximum allowed size (${formatFileSize(MAX_FILE_SIZE)})`);
+  }
+
+  // Check session size limit
+  const currentSize = Array.from(session.contentLibrary.values())
+    .reduce((total, item) => total + item.size, 0);
+  if (currentSize + file.size > MAX_SESSION_SIZE) {
+    throw new Error(`Session size would exceed maximum allowed size (${formatFileSize(MAX_SESSION_SIZE)})`);
+  }
+
+  // Process file based on type
+  if (file.name.endsWith(".zip") || file.type === "application/zip") {
+    return await processZipFile(session, file);
+  } else if (file.name.endsWith(".json") || file.type === "application/json") {
+    return await processJsonFile(session, file);
+  } else {
+    throw new Error("Unsupported file type. Only ZIP and JSON files are allowed.");
+  }
+}
+
+export function clearContent(session: Session): void {
+  session.lastActivity = new Date();
+  session.contentLibrary.clear();
+  session.currentlyDisplayed = null;
+
+  const sessionState: SessionStatePayload = {
+    id: session.id,
+    hasContent: false,
+    currentlyDisplayed: null,
+    connectedDevices: session.subscribers.size,
+  };
+
+  broadcast(session, { type: "content-list", payload: [] });
+  broadcast(session, { type: "content-cleared", payload: {} });
+  broadcast(session, { type: "session-state", payload: sessionState });
+}
+
+export function selectContent(session: Session, contentId: string): boolean {
+  session.lastActivity = new Date();
+  const content = session.contentLibrary.get(contentId);
+  if (!content) {
+    return false;
+  }
+
+  session.currentlyDisplayed = contentId;
+
+  const sessionState: SessionStatePayload = {
+    id: session.id,
+    hasContent: session.contentLibrary.size > 0,
+    currentlyDisplayed: contentId,
+    connectedDevices: session.subscribers.size,
+  };
 
   broadcast(session, {
     type: "content-selected",
     payload: {
       type: content.type,
-      url: content.url,
+      url: `/api/sessions/${session.id}/content/${contentId}`,
       name: content.name,
     },
   });
-
-  broadcast(session, {
-    type: "session-state",
-    payload: sessionToPublic(session),
-  });
+  broadcast(session, { type: "session-state", payload: sessionState });
 
   return true;
 }
 
-export async function clearContent(session: DisplaySession) {
-  session.currentContent = null;
+export function clearDisplay(session: Session): void {
+  session.lastActivity = new Date();
+  session.currentlyDisplayed = null;
 
-  await saveSession(session);
-
-  broadcast(session, { type: "content-cleared", payload: {} });
-  broadcast(session, {
-    type: "session-state",
-    payload: sessionToPublic(session),
-  });
-}
-
-export async function addContent(
-  session: DisplaySession,
-  content: Omit<ContentItem, "id" | "uploadedAt">,
-): Promise<ContentItem> {
-  const item: ContentItem = {
-    ...content,
-    id: randomUUID(),
-    uploadedAt: new Date().toISOString(),
+  const sessionState: SessionStatePayload = {
+    id: session.id,
+    hasContent: session.contentLibrary.size > 0,
+    currentlyDisplayed: null,
+    connectedDevices: session.subscribers.size,
   };
 
-  session.contentLibrary.set(item.id, item);
-  await saveSession(session);
-
-  broadcast(session, {
-    type: "content-list",
-    payload: Array.from(session.contentLibrary.values()),
-  });
-  broadcast(session, {
-    type: "session-state",
-    payload: sessionToPublic(session),
-  });
-
-  return item;
+  broadcast(session, { type: "content-cleared", payload: {} });
+  broadcast(session, { type: "session-state", payload: sessionState });
 }
 
-export async function clearAllContent(session: DisplaySession) {
-  session.contentLibrary.clear();
-  session.currentContent = null;
+// File processing helpers
+async function processZipFile(session: Session, file: File): Promise<ContentItem> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const zip = new AdmZip(buffer);
+  const entries = zip.getEntries();
 
-  await saveSession(session);
+  let processedCount = 0;
 
-  broadcast(session, { type: "content-list", payload: [] });
-  broadcast(session, { type: "content-cleared", payload: {} });
-  broadcast(session, {
-    type: "session-state",
-    payload: sessionToPublic(session),
-  });
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+
+    const fileName = entry.entryName.split("/").pop() || entry.entryName;
+    const ext = getExtension(fileName);
+
+    if (!isValidContentFormat(ext)) continue;
+
+    const entryData = entry.getData();
+    const base64Data = entryData.toString("base64");
+    const mimeType = getMimeType(ext);
+
+    const contentItem: ContentItem = {
+      id: randomUUID(),
+      name: getNameWithoutExtension(fileName),
+      type: IMAGE_FORMATS.includes(ext) ? "image" : "video",
+      data: base64Data,
+      mimeType,
+      size: entryData.length,
+      uploadedAt: new Date(),
+    };
+
+    session.contentLibrary.set(contentItem.id, contentItem);
+    processedCount++;
+  }
+
+  // Broadcast updated content list
+  const sessionState: SessionStatePayload = {
+    id: session.id,
+    hasContent: session.contentLibrary.size > 0,
+    currentlyDisplayed: session.currentlyDisplayed,
+    connectedDevices: session.subscribers.size,
+  };
+
+  broadcast(session, { type: "content-list", payload: Array.from(session.contentLibrary.values()) });
+  broadcast(session, { type: "session-state", payload: sessionState });
+
+  // Return a dummy content item representing the batch upload
+  return {
+    id: "batch-upload",
+    name: `${processedCount} files uploaded`,
+    type: "image",
+    data: "",
+    mimeType: "text/plain",
+    size: file.size,
+    uploadedAt: new Date(),
+  };
+}
+
+async function processJsonFile(session: Session, file: File): Promise<ContentItem> {
+  const jsonText = await file.text();
+  const data = JSON.parse(jsonText);
+
+  if (!data.items || !Array.isArray(data.items)) {
+    throw new Error("JSON file must contain an 'items' array");
+  }
+
+  let processedCount = 0;
+
+  for (const item of data.items) {
+    if (!item.name || !item.url) continue;
+
+    const url = item.url.toLowerCase();
+    const isImage = IMAGE_FORMATS.some(ext => url.includes(ext));
+    const isVideo = VIDEO_FORMATS.some(ext => url.includes(ext));
+
+    if (!isImage && !isVideo) continue;
+
+    const contentItem: ContentItem = {
+      id: randomUUID(),
+      name: item.name,
+      type: isImage ? "image" : "video",
+      data: item.url, // For JSON, we store the URL as data
+      mimeType: isImage ? "image/jpeg" : "video/mp4", // Default MIME types
+      size: 0, // Unknown size for external URLs
+      uploadedAt: new Date(),
+    };
+
+    session.contentLibrary.set(contentItem.id, contentItem);
+    processedCount++;
+  }
+
+  // Broadcast updated content list
+  const sessionState: SessionStatePayload = {
+    id: session.id,
+    hasContent: session.contentLibrary.size > 0,
+    currentlyDisplayed: session.currentlyDisplayed,
+    connectedDevices: session.subscribers.size,
+  };
+
+  broadcast(session, { type: "content-list", payload: Array.from(session.contentLibrary.values()) });
+  broadcast(session, { type: "session-state", payload: sessionState });
+
+  // Return a dummy content item representing the batch upload
+  return {
+    id: "json-upload",
+    name: `${processedCount} items loaded from JSON`,
+    type: "image",
+    data: "",
+    mimeType: "application/json",
+    size: file.size,
+    uploadedAt: new Date(),
+  };
+}
+
+// Session cleanup management
+function scheduleCleanup(sessionId: string): void {
+  cancelCleanup(sessionId); // Cancel any existing timer
+
+  const timer = setTimeout(() => {
+    sessions.delete(sessionId);
+    cleanupTimers.delete(sessionId);
+  }, 5 * 60 * 1000); // 5 minutes
+
+  cleanupTimers.set(sessionId, timer);
+}
+
+function cancelCleanup(sessionId: string): void {
+  const timer = cleanupTimers.get(sessionId);
+  if (timer) {
+    clearTimeout(timer);
+    cleanupTimers.delete(sessionId);
+  }
+}
+
+// Utility functions
+function isValidContentFormat(ext: string): boolean {
+  return [...IMAGE_FORMATS, ...VIDEO_FORMATS].includes(ext);
+}
+
+function getExtension(fileName: string): string {
+  return fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
+}
+
+function getNameWithoutExtension(fileName: string): string {
+  return fileName.substring(0, fileName.lastIndexOf("."));
+}
+
+function getMimeType(ext: string): string {
+  const mimeMap: Record<string, string> = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
+  };
+  return mimeMap[ext] || "application/octet-stream";
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }

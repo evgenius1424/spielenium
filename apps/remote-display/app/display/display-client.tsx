@@ -19,6 +19,8 @@ type DisplaySession = {
     state: "waiting" | "showing-content" | "error";
     currentContent: ContentInfo | null;
     connectedDevices: number;
+    hasContent: boolean;
+    currentlyDisplayed: string | null;
 };
 
 export default function DisplayClient() {
@@ -38,6 +40,8 @@ function DisplayContent() {
         state: "waiting",
         currentContent: null,
         connectedDevices: 0,
+        hasContent: false,
+        currentlyDisplayed: null,
     });
     const [isConnected, setIsConnected] = useState(false);
 
@@ -48,7 +52,15 @@ function DisplayContent() {
         es.onerror = () => setIsConnected(false);
 
         es.addEventListener("session-state", (e: MessageEvent) => {
-            setSession(JSON.parse(e.data));
+            const payload = JSON.parse(e.data);
+            setSession(prev => ({
+                ...prev,
+                id: payload.id,
+                connectedDevices: payload.connectedDevices,
+                hasContent: payload.hasContent,
+                currentlyDisplayed: payload.currentlyDisplayed,
+                state: payload.currentlyDisplayed ? "showing-content" : "waiting"
+            }));
         });
 
         es.addEventListener("content-selected", (e: MessageEvent) => {
