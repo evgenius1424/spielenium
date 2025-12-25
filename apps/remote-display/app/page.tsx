@@ -2,7 +2,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@repo/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/card";
 import { Input } from "@repo/ui/components/input";
 import { Monitor, Smartphone, Plus } from "lucide-react";
 
@@ -25,7 +30,8 @@ export default function Home() {
           📺 Remote Display
         </h1>
         <p className="text-xl text-muted-foreground font-mono max-w-2xl">
-          Upload content and control what displays on the big screen from your phone
+          Upload content and control what displays on the big screen from your
+          phone
         </p>
       </div>
 
@@ -54,9 +60,7 @@ export default function Home() {
               href={`/display${sessionId ? `?session=${sessionId}` : ""}`}
               className="block"
             >
-              <Button className="w-full h-12 text-lg">
-                Open Display
-              </Button>
+              <Button className="w-full h-12 text-lg">Open Display</Button>
             </Link>
             <p className="text-sm text-muted-foreground text-center">
               Full-screen content display with no scrollbars

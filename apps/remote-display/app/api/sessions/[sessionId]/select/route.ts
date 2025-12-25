@@ -8,11 +8,24 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
-  const session = getSession(sessionId);
+  console.log(`Select request for session: ${sessionId}`);
+
+  // Check what sessions exist
+  const { getAllSessions } = await import("@/lib/sessions");
+  const allSessions = await getAllSessions();
+  console.log(
+    `All sessions:`,
+    allSessions.map((s) => s.id),
+  );
+
+  const session = await getSession(sessionId);
 
   if (!session) {
+    console.log(`Session not found: ${sessionId}`);
     return new Response("Session not found", { status: 404 });
   }
+
+  console.log(`Session found: ${sessionId}`);
 
   try {
     const body = await req.json();
@@ -22,7 +35,7 @@ export async function POST(
       return new Response("Content ID is required", { status: 400 });
     }
 
-    const success = selectContent(session, contentId);
+    const success = await selectContent(session, contentId);
 
     if (!success) {
       return new Response("Content not found", { status: 404 });

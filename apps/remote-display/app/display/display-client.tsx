@@ -55,7 +55,7 @@ function DisplayContent() {
         url: string;
         name: string;
       };
-      setSession(prev => ({
+      setSession((prev) => ({
         ...prev,
         state: "showing-content",
         currentContent: payload,
@@ -63,7 +63,7 @@ function DisplayContent() {
     });
 
     es.addEventListener("content-cleared", () => {
-      setSession(prev => ({
+      setSession((prev) => ({
         ...prev,
         state: "waiting",
         currentContent: null,
@@ -85,7 +85,8 @@ function DisplayContent() {
             Use your remote device to select content to display
           </p>
           <p className="text-lg text-muted-foreground">
-            Session ID: <span className="font-mono font-bold">{session.id}</span>
+            Session ID:{" "}
+            <span className="font-mono font-bold">{session.id}</span>
           </p>
         </div>
       );
@@ -101,7 +102,7 @@ function DisplayContent() {
             src={url}
             alt={name}
             className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-            onError={() => setSession(prev => ({ ...prev, state: "error" }))}
+            onError={() => setSession((prev) => ({ ...prev, state: "error" }))}
           />
         </div>
       );
@@ -115,7 +116,7 @@ function DisplayContent() {
             controls
             autoPlay
             className="max-w-full max-h-full rounded-lg shadow-lg"
-            onError={() => setSession(prev => ({ ...prev, state: "error" }))}
+            onError={() => setSession((prev) => ({ ...prev, state: "error" }))}
           >
             Your browser does not support the video tag.
           </video>
@@ -129,25 +130,29 @@ function DisplayContent() {
   const renderStatusBar = () => (
     <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
       <div className="flex items-center gap-2">
-        <Badge variant={isConnected ? "default" : "destructive"} className="flex items-center gap-1">
-          {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+        <Badge
+          variant={isConnected ? "default" : "destructive"}
+          className="flex items-center gap-1"
+        >
+          {isConnected ? (
+            <Wifi className="w-3 h-3" />
+          ) : (
+            <WifiOff className="w-3 h-3" />
+          )}
           {isConnected ? "Connected" : "Disconnected"}
         </Badge>
         {session.connectedDevices > 0 && (
           <Badge variant="secondary">
-            {session.connectedDevices} device{session.connectedDevices !== 1 ? "s" : ""}
+            {session.connectedDevices} device
+            {session.connectedDevices !== 1 ? "s" : ""}
           </Badge>
         )}
       </div>
 
       <div className="flex items-center gap-2">
-        <Badge variant="outline">
-          Session: {session.id}
-        </Badge>
+        <Badge variant="outline">Session: {session.id}</Badge>
         {session.currentContent && (
-          <Badge variant="default">
-            {session.currentContent.name}
-          </Badge>
+          <Badge variant="default">{session.currentContent.name}</Badge>
         )}
       </div>
     </div>
@@ -161,7 +166,8 @@ function DisplayContent() {
           <div className="text-destructive text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold mb-2">Content Error</h2>
           <p className="text-muted-foreground">
-            Failed to load the selected content. Please try selecting different content.
+            Failed to load the selected content. Please try selecting different
+            content.
           </p>
         </Card>
       </div>
@@ -171,9 +177,7 @@ function DisplayContent() {
   return (
     <div className="h-screen w-full bg-background overflow-hidden relative">
       {renderStatusBar()}
-      <div className="h-full w-full pt-16">
-        {renderContent()}
-      </div>
+      <div className="h-full w-full pt-16">{renderContent()}</div>
     </div>
   );
 }

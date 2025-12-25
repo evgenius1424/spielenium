@@ -1,19 +1,25 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@repo/ui/components/card";
 import { Badge } from "@repo/ui/components/badge";
 import { Input } from "@repo/ui/components/input";
 import {
-  Search,
-  Image,
-  Video,
-  Monitor,
-  Upload,
   Grid,
+  Image,
   List,
-  X
+  Loader2,
+  Monitor,
+  Search,
+  Upload,
+  Video,
+  X,
 } from "lucide-react";
 
 type ContentItem = {
@@ -46,9 +52,13 @@ function RemoteControlContent() {
 
   const [contentList, setContentList] = useState<ContentItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"all" | "image" | "video">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "image" | "video">(
+    "all",
+  );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [isConnected, setIsConnected] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // SSE subscription
   useEffect(() => {
@@ -65,14 +75,16 @@ function RemoteControlContent() {
     es.addEventListener("content-list", (e: MessageEvent) => {
       const payload: ContentItem[] = JSON.parse(e.data);
       setContentList(payload);
-      setSession(prev => ({ ...prev, hasContent: payload.length > 0 }));
+      setSession((prev) => ({ ...prev, hasContent: payload.length > 0 }));
     });
 
     return () => es.close();
   }, [sessionId]);
 
-  const filteredContent = contentList.filter(item => {
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredContent = contentList.filter((item) => {
+    const matchesSearch = item.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === "all" || item.type === typeFilter;
     return matchesSearch && matchesType;
   });
@@ -91,7 +103,7 @@ function RemoteControlContent() {
       });
 
       if (response.ok) {
-        setSession(prev => ({ ...prev, currentlyDisplayed: item.id }));
+        setSession((prev) => ({ ...prev, currentlyDisplayed: item.id }));
       }
     } catch (error) {
       console.error("Failed to select content:", error);
@@ -101,9 +113,60 @@ function RemoteControlContent() {
   const clearDisplay = async () => {
     try {
       await fetch(`/api/sessions/${sessionId}/clear`, { method: "POST" });
-      setSession(prev => ({ ...prev, currentlyDisplayed: null }));
+      setSession((prev) => ({ ...prev, currentlyDisplayed: null }));
     } catch (error) {
       console.error("Failed to clear display:", error);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith(".zip") && !file.name.endsWith(".json")) {
+      alert("Please select a ZIP file or JSON file");
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`/api/sessions/${sessionId}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Upload failed");
+      }
+
+      const result = await response.json();
+      setContentList(result.items);
+      setSession((prev) => ({
+        ...prev,
+        hasContent: result.items.length > 0,
+        currentlyDisplayed: null,
+      }));
+    } catch (error) {
+      console.error("Upload failed:", error);
+      alert(
+        `Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      );
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -234,7 +297,11 @@ function RemoteControlContent() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                {contentList.find(item => item.id === session.currentlyDisplayed)?.name}
+                {
+                  contentList.find(
+                    (item) => item.id === session.currentlyDisplayed,
+                  )?.name
+                }
               </p>
             </CardContent>
           </Card>
@@ -245,9 +312,23 @@ function RemoteControlContent() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
               <CardTitle>Content Library</CardTitle>
-              <Button variant="outline" className="w-full sm:w-auto">
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Content
+              <Button
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={handleUploadClick}
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Content
+                  </>
+                )}
               </Button>
             </div>
           </CardHeader>
@@ -315,13 +396,24 @@ function RemoteControlContent() {
           <Card>
             <CardContent className="p-8 text-center">
               <Upload className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No Content Available</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                No Content Available
+              </h3>
               <p className="text-muted-foreground mb-4">
                 Upload some images or videos to get started
               </p>
-              <Button>
-                <Upload className="w-4 h-4 mr-2" />
-                Upload Content
+              <Button onClick={handleUploadClick} disabled={isUploading}>
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Content
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -335,10 +427,19 @@ function RemoteControlContent() {
               </p>
             </CardContent>
           </Card>
+        ) : viewMode === "grid" ? (
+          renderContentGrid()
         ) : (
-          viewMode === "grid" ? renderContentGrid() : renderContentList()
+          renderContentList()
         )}
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".zip,.json,application/zip,application/json"
+        onChange={handleFileUpload}
+        style={{ display: "none" }}
+      />
     </div>
   );
 }
@@ -348,7 +449,9 @@ function RemoteControlFallback() {
     <div className="min-h-screen bg-background p-4 flex items-center justify-center">
       <div className="text-center">
         <Monitor className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-        <h2 className="text-xl font-semibold mb-2">Loading Remote Control...</h2>
+        <h2 className="text-xl font-semibold mb-2">
+          Loading Remote Control...
+        </h2>
         <p className="text-muted-foreground">Initializing session...</p>
       </div>
     </div>

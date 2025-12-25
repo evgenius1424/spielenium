@@ -1,5 +1,10 @@
 import { NextRequest } from "next/server";
-import { getSession, createSession, type ServerEvent, subscribe } from "@/lib/sessions";
+import {
+  createSession,
+  getSession,
+  type ServerEvent,
+  subscribe,
+} from "@/lib/sessions";
 import { randomUUID } from "crypto";
 
 function toSSE(e: ServerEvent) {
@@ -15,10 +20,10 @@ export async function GET(
   const { sessionId } = await params;
 
   // Create session if it doesn't exist
-  let session = getSession(sessionId);
+  let session = await getSession(sessionId);
   if (!session) {
-    createSession(sessionId);
-    session = getSession(sessionId);
+    await createSession(sessionId);
+    session = await getSession(sessionId);
     if (!session) {
       return new Response("Failed to create session", { status: 500 });
     }
