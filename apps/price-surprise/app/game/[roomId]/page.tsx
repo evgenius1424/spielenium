@@ -269,7 +269,7 @@ export default function HostRoom() {
                 <div className="text-center mb-4 text-lg">
                   {room.players[room.currentPickerIndex!]?.name} is choosing a category…
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 justify-items-center">
                   {room.categories.map((category) => {
                     const totalItems = category.items.length ?? 0;
                     return (
@@ -277,15 +277,17 @@ export default function HostRoom() {
                         key={category.name}
                         className="flex flex-col items-center rounded-xl border p-2"
                       >
-                        <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-xl mb-2 h-24">
+                        <div className="flex-1 w-full flex items-center justify-center overflow-hidden mb-2 h-2/3">
                           <img
                             src={category.logo}
                             alt={category.name}
-                            className="object-contain h-full w-full"
+                            className="h-full w-full object-contain"
                           />
                         </div>
-                        <span className="text-sm font-medium">{category.name}</span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-sm font-medium text-center break-words mt-1">
+                          {category.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground text-center mt-auto break-words">
                           {totalItems} item{totalItems !== 1 ? "s" : ""} left
                         </span>
                       </div>
