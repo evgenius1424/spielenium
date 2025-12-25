@@ -8,20 +8,22 @@ export type ContentItem = {
   data: string; // base64 encoded
   mimeType: string;
   size: number;
-  uploadedAt: Date;
+  uploadedAt: string; // ISO string
 };
+
+export type ContentItemPublic = Omit<ContentItem, "data">;
 
 export type Session = {
   id: string;
   contentLibrary: Map<string, ContentItem>;
   currentlyDisplayed: string | null;
   subscribers: Set<(event: SSEEvent) => void>;
-  lastActivity: Date;
+  lastActivity: string; // ISO string
 };
 
 export type SSEEvent =
   | { type: "session-state"; payload: SessionStatePayload }
-  | { type: "content-list"; payload: ContentItem[] }
+  | { type: "content-list"; payload: ContentItemPublic[] }
   | { type: "content-selected"; payload: { type: string; url: string; name: string } }
   | { type: "content-cleared"; payload: {} };
 
@@ -42,6 +44,21 @@ const MAX_SESSION_SIZE = 200 * 1024 * 1024; // 200MB
 const sessions = new Map<string, Session>();
 const cleanupTimers = new Map<string, NodeJS.Timeout>();
 
+// Helper functions
+function toPublicContentItem(item: ContentItem): ContentItemPublic {
+  const { data, ...rest } = item;
+  return rest;
+}
+
+function getSessionState(session: Session): SessionStatePayload {
+  return {
+    id: session.id,
+    hasContent: session.contentLibrary.size > 0,
+    currentlyDisplayed: session.currentlyDisplayed,
+    connectedDevices: session.subscribers.size,
+  };
+}
+
 // Session management
 export function getOrCreateSession(sessionId: string): Session {
   let session = sessions.get(sessionId);
@@ -51,19 +68,19 @@ export function getOrCreateSession(sessionId: string): Session {
       contentLibrary: new Map(),
       currentlyDisplayed: null,
       subscribers: new Set(),
-      lastActivity: new Date(),
+      lastActivity: new Date().toISOString(),
     };
     sessions.set(sessionId, session);
     cancelCleanup(sessionId);
   }
-  session.lastActivity = new Date();
+  session.lastActivity = new Date().toISOString();
   return session;
 }
 
 export function getSession(sessionId: string): Session | undefined {
   const session = sessions.get(sessionId);
   if (session) {
-    session.lastActivity = new Date();
+    session.lastActivity = new Date().toISOString();
   }
   return session;
 }
@@ -71,24 +88,20 @@ export function getSession(sessionId: string): Session | undefined {
 // Subscription management
 export function subscribe(session: Session, callback: (event: SSEEvent) => void): () => void {
   session.subscribers.add(callback);
-  session.lastActivity = new Date();
+  session.lastActivity = new Date().toISOString();
   cancelCleanup(session.id);
 
   // Send initial state
-  const sessionState: SessionStatePayload = {
-    id: session.id,
-    hasContent: session.contentLibrary.size > 0,
-    currentlyDisplayed: session.currentlyDisplayed,
-    connectedDevices: session.subscribers.size,
-  };
-
-  callback({ type: "session-state", payload: sessionState });
-  callback({ type: "content-list", payload: Array.from(session.contentLibrary.values()) });
+  callback({ type: "session-state", payload: getSessionState(session) });
+  callback({
+    type: "content-list",
+    payload: Array.from(session.contentLibrary.values()).map(toPublicContentItem)
+  });
 
   // Return unsubscribe function
   return () => {
     session.subscribers.delete(callback);
-    session.lastActivity = new Date();
+    session.lastActivity = new Date().toISOString();
 
     // Schedule cleanup if no subscribers remain
     if (session.subscribers.size === 0) {
@@ -98,7 +111,7 @@ export function subscribe(session: Session, callback: (event: SSEEvent) => void)
 }
 
 export function broadcast(session: Session, event: SSEEvent): void {
-  session.lastActivity = new Date();
+  session.lastActivity = new Date().toISOString();
   for (const callback of session.subscribers) {
     try {
       callback(event);
@@ -109,8 +122,25 @@ export function broadcast(session: Session, event: SSEEvent): void {
 }
 
 // Content management
-export async function addContent(session: Session, file: File): Promise<ContentItem> {
-  session.lastActivity = new Date();
+function clearContentSilent(session: Session): void {
+  session.contentLibrary.clear();
+  session.currentlyDisplayed = null;
+}
+
+export function clearContent(session: Session): void {
+  session.lastActivity = new Date().toISOString();
+  clearContentSilent(session);
+
+  broadcast(session, { type: "content-list", payload: [] });
+  broadcast(session, { type: "content-cleared", payload: {} });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
+}
+
+export async function addContent(session: Session, file: File): Promise<void> {
+  session.lastActivity = new Date().toISOString();
+
+  // Clear existing content silently
+  clearContentSilent(session);
 
   // Validate file size
   if (file.size > MAX_FILE_SIZE) {
@@ -126,46 +156,29 @@ export async function addContent(session: Session, file: File): Promise<ContentI
 
   // Process file based on type
   if (file.name.endsWith(".zip") || file.type === "application/zip") {
-    return await processZipFile(session, file);
+    await processZipFile(session, file);
   } else if (file.name.endsWith(".json") || file.type === "application/json") {
-    return await processJsonFile(session, file);
+    await processJsonFile(session, file);
   } else {
     throw new Error("Unsupported file type. Only ZIP and JSON files are allowed.");
   }
-}
 
-export function clearContent(session: Session): void {
-  session.lastActivity = new Date();
-  session.contentLibrary.clear();
-  session.currentlyDisplayed = null;
-
-  const sessionState: SessionStatePayload = {
-    id: session.id,
-    hasContent: false,
-    currentlyDisplayed: null,
-    connectedDevices: session.subscribers.size,
-  };
-
-  broadcast(session, { type: "content-list", payload: [] });
-  broadcast(session, { type: "content-cleared", payload: {} });
-  broadcast(session, { type: "session-state", payload: sessionState });
+  // Broadcast updated content and session state
+  broadcast(session, {
+    type: "content-list",
+    payload: Array.from(session.contentLibrary.values()).map(toPublicContentItem)
+  });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
 }
 
 export function selectContent(session: Session, contentId: string): boolean {
-  session.lastActivity = new Date();
+  session.lastActivity = new Date().toISOString();
   const content = session.contentLibrary.get(contentId);
   if (!content) {
     return false;
   }
 
   session.currentlyDisplayed = contentId;
-
-  const sessionState: SessionStatePayload = {
-    id: session.id,
-    hasContent: session.contentLibrary.size > 0,
-    currentlyDisplayed: contentId,
-    connectedDevices: session.subscribers.size,
-  };
 
   broadcast(session, {
     type: "content-selected",
@@ -175,33 +188,24 @@ export function selectContent(session: Session, contentId: string): boolean {
       name: content.name,
     },
   });
-  broadcast(session, { type: "session-state", payload: sessionState });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
 
   return true;
 }
 
 export function clearDisplay(session: Session): void {
-  session.lastActivity = new Date();
+  session.lastActivity = new Date().toISOString();
   session.currentlyDisplayed = null;
 
-  const sessionState: SessionStatePayload = {
-    id: session.id,
-    hasContent: session.contentLibrary.size > 0,
-    currentlyDisplayed: null,
-    connectedDevices: session.subscribers.size,
-  };
-
   broadcast(session, { type: "content-cleared", payload: {} });
-  broadcast(session, { type: "session-state", payload: sessionState });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
 }
 
 // File processing helpers
-async function processZipFile(session: Session, file: File): Promise<ContentItem> {
+async function processZipFile(session: Session, file: File): Promise<void> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const zip = new AdmZip(buffer);
   const entries = zip.getEntries();
-
-  let processedCount = 0;
 
   for (const entry of entries) {
     if (entry.isDirectory) continue;
@@ -222,45 +226,20 @@ async function processZipFile(session: Session, file: File): Promise<ContentItem
       data: base64Data,
       mimeType,
       size: entryData.length,
-      uploadedAt: new Date(),
+      uploadedAt: new Date().toISOString(),
     };
 
     session.contentLibrary.set(contentItem.id, contentItem);
-    processedCount++;
   }
-
-  // Broadcast updated content list
-  const sessionState: SessionStatePayload = {
-    id: session.id,
-    hasContent: session.contentLibrary.size > 0,
-    currentlyDisplayed: session.currentlyDisplayed,
-    connectedDevices: session.subscribers.size,
-  };
-
-  broadcast(session, { type: "content-list", payload: Array.from(session.contentLibrary.values()) });
-  broadcast(session, { type: "session-state", payload: sessionState });
-
-  // Return a dummy content item representing the batch upload
-  return {
-    id: "batch-upload",
-    name: `${processedCount} files uploaded`,
-    type: "image",
-    data: "",
-    mimeType: "text/plain",
-    size: file.size,
-    uploadedAt: new Date(),
-  };
 }
 
-async function processJsonFile(session: Session, file: File): Promise<ContentItem> {
+async function processJsonFile(session: Session, file: File): Promise<void> {
   const jsonText = await file.text();
   const data = JSON.parse(jsonText);
 
   if (!data.items || !Array.isArray(data.items)) {
     throw new Error("JSON file must contain an 'items' array");
   }
-
-  let processedCount = 0;
 
   for (const item of data.items) {
     if (!item.name || !item.url) continue;
@@ -278,34 +257,11 @@ async function processJsonFile(session: Session, file: File): Promise<ContentIte
       data: item.url, // For JSON, we store the URL as data
       mimeType: isImage ? "image/jpeg" : "video/mp4", // Default MIME types
       size: 0, // Unknown size for external URLs
-      uploadedAt: new Date(),
+      uploadedAt: new Date().toISOString(),
     };
 
     session.contentLibrary.set(contentItem.id, contentItem);
-    processedCount++;
   }
-
-  // Broadcast updated content list
-  const sessionState: SessionStatePayload = {
-    id: session.id,
-    hasContent: session.contentLibrary.size > 0,
-    currentlyDisplayed: session.currentlyDisplayed,
-    connectedDevices: session.subscribers.size,
-  };
-
-  broadcast(session, { type: "content-list", payload: Array.from(session.contentLibrary.values()) });
-  broadcast(session, { type: "session-state", payload: sessionState });
-
-  // Return a dummy content item representing the batch upload
-  return {
-    id: "json-upload",
-    name: `${processedCount} items loaded from JSON`,
-    type: "image",
-    data: "",
-    mimeType: "application/json",
-    size: file.size,
-    uploadedAt: new Date(),
-  };
 }
 
 // Session cleanup management

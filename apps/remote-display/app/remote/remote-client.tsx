@@ -12,10 +12,9 @@ type ContentItem = {
     id: string;
     name: string;
     type: "image" | "video";
-    data: string; // base64 encoded data or URL
     mimeType: string;
     size: number;
-    uploadedAt: Date;
+    uploadedAt: string;
 };
 
 type SessionState = {

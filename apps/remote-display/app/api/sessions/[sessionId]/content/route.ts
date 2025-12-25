@@ -4,11 +4,18 @@ import {
   getSession,
   addContent,
   clearContent,
+  type ContentItemPublic,
 } from "@/lib/sessions";
 
 export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ sessionId: string }> };
+
+// Helper function to convert ContentItem to public version
+function toPublicContentItem(item: any): ContentItemPublic {
+  const { data, ...rest } = item;
+  return rest;
+}
 
 // GET: return content list as JSON
 export async function GET(
@@ -22,7 +29,8 @@ export async function GET(
     return NextResponse.json([]);
   }
 
-  return NextResponse.json(Array.from(session.contentLibrary.values()));
+  const publicItems = Array.from(session.contentLibrary.values()).map(toPublicContentItem);
+  return NextResponse.json(publicItems);
 }
 
 // POST: upload file (ZIP or JSON), returns new content list
@@ -41,18 +49,15 @@ export async function POST(
   try {
     const session = getOrCreateSession(sessionId);
 
-    // Clear existing content first (as per original behavior)
-    clearContent(session);
-
-    // Add new content
+    // Add new content (which handles clearing internally)
     await addContent(session, file);
 
     // Return updated content list
-    const contentList = Array.from(session.contentLibrary.values());
+    const publicItems = Array.from(session.contentLibrary.values()).map(toPublicContentItem);
     return NextResponse.json({
       success: true,
-      contentCount: contentList.length,
-      items: contentList,
+      contentCount: publicItems.length,
+      items: publicItems,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
