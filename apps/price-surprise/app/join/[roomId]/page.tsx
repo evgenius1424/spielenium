@@ -208,9 +208,9 @@ export default function JoinRoom() {
         {player && (
           <motion.div key="play" {...fade}>
             <Card className="w-full max-w-md mx-auto">
-              <CardHeader>
+              <CardContent className="flex flex-col justify-center items-center h-full">
                 <CardTitle className="text-center text-xl">Hello {player.name}</CardTitle>
-              </CardHeader>
+              </CardContent>
               <CardContent>
                 {!room && <div className="text-center text-muted-foreground animate-pulse">Connecting…</div>}
 
