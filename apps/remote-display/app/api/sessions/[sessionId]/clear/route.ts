@@ -1,24 +1,18 @@
-import { NextRequest } from "next/server";
-import { clearContent, getSession } from "@/lib/sessions";
+import {NextRequest, NextResponse} from "next/server";
+import {clearContent, getSession} from "@/lib/sessions";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ sessionId: string }> },
-) {
-  const { sessionId } = await params;
-  const session = await getSession(sessionId);
+type RouteParams = { params: Promise<{ sessionId: string }> };
 
-  if (!session) {
-    return new Response("Session not found", { status: 404 });
-  }
+export async function POST(_req: NextRequest, {params}: RouteParams) {
+    const {sessionId} = await params;
+    const session = await getSession(sessionId);
 
-  try {
+    if (!session) {
+        return NextResponse.json({error: "Session not found"}, {status: 404});
+    }
+
     await clearContent(session);
-    return Response.json({ success: true });
-  } catch (error) {
-    console.error("Error clearing content:", error);
-    return new Response("Internal server error", { status: 500 });
-  }
+    return NextResponse.json({success: true});
 }

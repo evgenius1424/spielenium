@@ -1,7 +1,7 @@
-import {randomUUID} from "crypto";
-import {mkdir, readFile, writeFile} from "fs/promises";
-import {join} from "path";
-import {tmpdir} from "os";
+import { randomUUID } from "crypto";
+import { mkdir, readFile, writeFile } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
 
 export type ContentType = "image" | "video" | "none";
 
