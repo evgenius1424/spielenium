@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 export type GameState =
+  | "lobby"
   | "category-selection"
   | "guessing"
   | "results"
@@ -31,6 +32,7 @@ type Room = {
   selectedCategory: Category | null;
   currentItem: Item | null;
   players: Map<string, Player>;
+  currentCategoryPickerIndex?: number;
   playerIdToGuess: Map<string, number>;
   subscribers: Set<(event: ServerEvent) => void>;
 };
@@ -42,10 +44,12 @@ export type RoomPublic = {
   selectedCategory: Category | null;
   currentItem: Item | null;
   players: PlayerPublic[];
+  currentPickerIndex?: number;
 };
 
 export type Category = {
   name: string,
+  type: string,
   logo: string;
   items: Item[];
 };
@@ -80,11 +84,12 @@ export function createRoom(categories: Category[]): RoomPublic {
   const room: Room = {
     id,
     createdAt: Date.now(),
-    state: "category-selection",
+    state: "lobby",
     categories,
     selectedCategory: null,
     currentItem: null,
     players: new Map(),
+    currentCategoryPickerIndex: 0,
     playerIdToGuess: new Map(),
     subscribers: new Set(),
   };
@@ -109,6 +114,7 @@ export function roomToPublic(room: Room): RoomPublic {
       score,
       voted,
     })),
+    currentPickerIndex: room.currentCategoryPickerIndex,
   };
 }
 
@@ -128,6 +134,10 @@ function broadcast(room: Room, e: ServerEvent) {
   }
 }
 
+function broadcastRoomState(room: Room) {
+  broadcast(room, { type: "state", payload: roomToPublic(room) });
+}
+
 export function joinRoom(room: Room, name: string): PlayerPublic {
   const id = randomUUID().slice(0, 8);
   const player: Player = {
@@ -137,8 +147,29 @@ export function joinRoom(room: Room, name: string): PlayerPublic {
     voted: false,
   };
   room.players.set(id, player);
-  broadcast(room, { type: "state", payload: roomToPublic(room) });
+  broadcastRoomState(room);
   return { id: player.id, name: player.name, score: player.score, voted: player.voted };
+}
+
+export function startGame(roomId: string) {
+  const room = rooms.get(roomId);
+  if (!room) {
+    throw new Error("Room not found");
+  }
+
+  if (room.state !== "lobby") {
+    throw new Error("Game already started");
+  }
+
+  if (!room.players || room.players.size === 0) {
+    throw new Error("No players joined");
+  }
+
+  room.state = "category-selection";
+  room.currentCategoryPickerIndex = 0;
+  room.selectedCategory = null;
+  room.currentItem = null;
+  broadcastRoomState(room);
 }
 
 export function pickItem(
@@ -161,7 +192,7 @@ export function pickItem(
   room.playerIdToGuess.clear();
   // @ts-ignore
   broadcast(room, { type: "question", payload: { category, item } });
-  broadcast(room, { type: "state", payload: roomToPublic(room) });
+  broadcastRoomState(room);
   // @ts-ignore
   return { category, item };
 }
@@ -176,7 +207,7 @@ export function submitGuess(room: Room, playerId: string, guess: number) {
     type: "guess",
     payload: { playerId, name: player.name, guess },
   });
-  broadcast(room, { type: "state", payload: roomToPublic(room) });
+  broadcastRoomState(room);
 }
 
 export function closeRound(room: Room) {
@@ -203,6 +234,8 @@ export function closeRound(room: Room) {
       });
     }
   }
+
+  diffs.sort((a, b) => a.diff - b.diff);
 
   const minDiff = Math.min(...diffs.map((p) => p.diff));
   const maxDiff = Math.max(...diffs.map((p) => p.diff));
@@ -240,7 +273,6 @@ export function closeRound(room: Room) {
     room.categories = room.categories.filter((c) => c !== category);
   }
 
-  room.selectedCategory = null;
   room.playerIdToGuess.clear();
   room.state = "results";
 
@@ -265,7 +297,7 @@ export function endGame(room: Room) {
   room.selectedCategory = null;
   room.currentItem = null;
   room.playerIdToGuess.clear();
-  broadcast(room, { type: "state", payload: roomToPublic(room) });
+  broadcastRoomState(room);
 }
 
 export function nextStep(room: Room) {
@@ -278,5 +310,5 @@ export function nextStep(room: Room) {
   room.selectedCategory = null;
   room.currentItem = null;
   room.playerIdToGuess.clear();
-  broadcast(room, { type: "state", payload: roomToPublic(room) });
+  broadcastRoomState(room);
 }

@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
@@ -8,84 +9,38 @@ import {
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/card";
-import { Input } from "@repo/ui/components/input";
-import demoData from "../data.json";
+import { Category } from "@/lib/rooms";
 
 export default function LobbyPage() {
   const [loading, setLoading] = useState(false);
-  const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [presets, setPresets] = useState<{ name: string; path: string }[]>([
+    { name: "Preset 1", path: "/preset1/data.json" },
+  ]);
   const router = useRouter();
 
-  // Initialize from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("gameData");
-      const storedName = localStorage.getItem("gameDataFileName");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object" && parsed.categories) {
-          setFileName(storedName || "Uploaded data");
-        } else {
-          // clean invalid data
-          localStorage.removeItem("gameData");
-          localStorage.removeItem("gameDataFileName");
-        }
-      }
-    } catch {
-      // if parsing fails, clear
-      localStorage.removeItem("gameData");
-      localStorage.removeItem("gameDataFileName");
-    }
-  }, []);
-
-  const hasGameData = !!fileName; // derived state to control Create button
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(reader.result as string);
-        if (!data.categories || typeof data.categories !== "object") {
-          throw new Error("Invalid data format");
-        }
-        localStorage.setItem("gameData", JSON.stringify(data));
-        localStorage.setItem("gameDataFileName", file.name);
-        setFileName(file.name);
-        setError(null);
-      } catch (err) {
-        setError("Failed to parse the file. Ensure it is a valid JSON file.");
-      }
-    };
-    reader.onerror = () => {
-      setError("Failed to read the file.");
-    };
-    reader.readAsText(file);
-  };
-
-  async function createRoom() {
-    // prevent creating a room if no data
-    const raw = localStorage.getItem("gameData");
-    if (!raw) {
-      setError("Please upload game data before creating a room.");
-      return;
-    }
+  async function createRoomFromPreset(presetPath: string) {
     try {
       setLoading(true);
-      const data = JSON.parse(raw);
-      const res = await fetch("/api/rooms", {
+      const res = await fetch(presetPath);
+      if (!res.ok) throw new Error("Failed to load preset JSON");
+      const data = (await res.json()) as { categories: Category[] };
+      if (!data.categories) throw new Error("Invalid preset format");
+
+      // create room on server
+      const roomRes = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ categories: data.categories }),
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result?.error || "Failed to create room");
+      const roomData = await roomRes.json();
+      if (!roomRes.ok) throw new Error(roomData?.error || "Failed to create room");
 
-      router.push(`/game/${result.id}`);
+      router.push(`/game/${roomData.id}`);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create room from preset.");
     } finally {
       setLoading(false);
     }
@@ -115,74 +70,26 @@ export default function LobbyPage() {
         </CardHeader>
 
         <CardContent className="flex flex-col gap-4">
-          {/* Upload JSON game data */}
+          {/* Preset buttons */}
           <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium">Upload Game Data</label>
-            <Input type="file" accept=".json" onChange={handleFileUpload} />
-            <div className="flex gap-2">
+            <p className="text-sm font-medium text-center">Select a preset</p>
+            {presets.map((preset) => (
               <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  try {
-                    if (
-                      !demoData ||
-                      typeof demoData !== "object" ||
-                      !("categories" in demoData)
-                    ) {
-                      throw new Error("Invalid demo data");
-                    }
-                    localStorage.setItem("gameData", JSON.stringify(demoData));
-                    localStorage.setItem("gameDataFileName", "data.json");
-                    setFileName("data.json");
-                    setError(null);
-                  } catch (e) {
-                    setError("Failed to load demo data.");
-                  }
-                }}
+                key={preset.path}
+                onClick={() => createRoomFromPreset(preset.path)}
+                disabled={loading}
+                className="h-12 text-lg"
               >
-                Load Demo Data
+                {loading ? "Creating…" : preset.name}
               </Button>
-            </div>
-            {!hasGameData && (
-              <p className="text-xs text-muted-foreground text-center">
-                Upload a JSON file with categories and items to start — or use
-                the demo data.
-              </p>
-            )}
-            {fileName && (
-              <p className="text-sm text-green-600 text-center">
-                Uploaded: {fileName}
-              </p>
-            )}
-            {error && (
-              <p className="text-sm text-red-500 text-center">{error}</p>
-            )}
-            {fileName && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  localStorage.removeItem("gameData");
-                  localStorage.removeItem("gameDataFileName");
-                  setFileName(null);
-                }}
-              >
-                Clear Uploaded Data
-              </Button>
-            )}
+            ))}
           </div>
 
-          {/* Create Room */}
-          <Button
-            onClick={createRoom}
-            disabled={loading || !hasGameData}
-            className="h-12 text-lg"
-          >
-            {loading ? "Creating…" : "Create Room"}
-          </Button>
+          {error && (
+            <p className="text-sm text-red-500 text-center mt-2">{error}</p>
+          )}
 
-          <p className="text-sm text-muted-foreground text-center">
+          <p className="text-sm text-muted-foreground text-center mt-4">
             Players join at{" "}
             <code className="px-1 py-0.5 rounded bg-muted">
               /join/&lt;ROOM_ID&gt;

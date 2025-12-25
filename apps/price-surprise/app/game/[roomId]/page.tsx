@@ -46,6 +46,7 @@ export default function HostRoom() {
   >([]);
   const [winners, setWinners] = useState<string[]>([]);
   const [losers, setLosers] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
 
   /* ─────────────────────────────────────────────────────────────
      SSE subscription
@@ -82,17 +83,15 @@ export default function HostRoom() {
   /* ─────────────────────────────────────────────────────────────
      Actions
      ───────────────────────────────────────────────────────────── */
+  async function startGame() {
+    if (!room) return;
+    try {
+      const res = await fetch(`/api/rooms/${room.id}/start`, { method: "POST" });
 
-  async function pick(category: Category) {
-    const res = await fetch(`/api/rooms/${roomId}/next`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "pick",
-        category,
-      }),
-    });
-    if (!res.ok) console.error("Pick failed");
+      if (!res.ok) throw new Error("Failed to start game");
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function closeRound() {
@@ -143,7 +142,24 @@ export default function HostRoom() {
             animate={{ rotate: 0, opacity: 1 }}
             transition={{ type: "spring", stiffness: 200 }}
           />
-          <h1 className="text-3xl font-bold">Room {room.id}</h1>
+          <h1
+            className="text-3xl font-bold cursor-pointer select-all"
+            onClick={() => {
+              const link = `${window.location.origin}/join/${room.id}`;
+              navigator.clipboard.writeText(link).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              });
+            }}
+            title="Click to copy join link"
+          >
+            Room {room.id}
+          </h1>
+          {copied && (
+            <span className="ml-2 text-sm text-green-600 font-medium">
+              Link copied!
+            </span>
+          )}
         </div>
         <Badge variant="secondary">State: {room.state}</Badge>
       </div>
@@ -218,34 +234,50 @@ export default function HostRoom() {
 
       {/* Game phases */}
       <AnimatePresence mode="wait">
+        {room.state === "lobby" && (
+          <motion.div key="lobby" {...pageFade}>
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-2xl text-center">Lobby</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="text-center text-muted-foreground">
+                  Waiting for players to join…
+                </div>
+
+                <Button
+                  onClick={startGame}
+                  disabled={room.players.length === 0}
+                  className="mx-auto h-12 text-lg"
+                >
+                  Start Game
+                </Button>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
         {room.state === "category-selection" && (
           <motion.div key="category" {...pageFade}>
             <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-2xl text-center">
-                  Choose a Category
+                  Category Selection
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <motion.div
-                  variants={stagger}
-                  initial="initial"
-                  animate="animate"
-                  className="grid grid-cols-2 md:grid-cols-4 gap-3"
-                >
+                <div className="text-center mb-4 text-lg">
+                  {room.players[room.currentPickerIndex!]?.name} is choosing a category…
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {room.categories.map((category) => {
                     const totalItems = category.items.length ?? 0;
-
                     return (
-                      <motion.button
+                      <div
                         key={category.name}
-                        variants={pop}
-                        whileHover={{ scale: 1.04 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={() => pick(category)}
-                        className="flex flex-col items-center rounded-xl border hover:bg-accent transition font-medium p-2"
+                        className="flex flex-col items-center rounded-xl border p-2"
                       >
-                        <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-xl mb-2">
+                        <div className="w-full flex-1 flex items-center justify-center overflow-hidden rounded-xl mb-2 h-24">
                           <img
                             src={category.logo}
                             alt={category.name}
@@ -256,10 +288,10 @@ export default function HostRoom() {
                         <span className="text-xs text-muted-foreground">
                           {totalItems} item{totalItems !== 1 ? "s" : ""} left
                         </span>
-                      </motion.button>
+                      </div>
                     );
                   })}
-                </motion.div>
+                </div>
               </CardContent>
             </Card>
           </motion.div>
@@ -355,8 +387,28 @@ export default function HostRoom() {
                       {Number.isFinite(d.diff) ? (
                         <>
                           <div className="text-sm text-muted-foreground">Guess</div>
-                          <div className="text-xl font-bold">€{d.guess}</div>
-                          <div className="text-sm">Diff: €{Math.round(d.diff)}</div>
+                          <div className="text-xl font-bold">
+                            {
+                              room.selectedCategory?.type === "ruble"
+                                ? "₽"
+                                : room.selectedCategory?.type === "comparison"
+                                  ? "%"
+                                  : "€"
+                            }
+                            {" "}
+                            {d.guess}
+                          </div>
+                          <div className="text-sm">
+                            Diff:{" "}
+                            {
+                              room.selectedCategory?.type === "ruble"
+                                ? "₽"
+                                : room.selectedCategory?.type === "comparison"
+                                  ? "%"
+                                  : "€"
+                            }
+                            {" "}
+                            {Math.round(d.diff)}</div>
                         </>
                       ) : (
                         <div className="text-muted-foreground">No guess</div>
