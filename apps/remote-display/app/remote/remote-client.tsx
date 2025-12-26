@@ -205,12 +205,46 @@ function MobileContentSearch({
                             )}
                             <span className="flex-1 truncate font-medium">{item.name}</span>
                             <span className="text-sm text-muted-foreground flex-shrink-0">
-                                {formatFileSize(item.size)}
+                                {item.size > 0 ? formatFileSize(item.size) : "External"}
                             </span>
                         </button>
                     ))
                 )}
             </div>
+        </div>
+    );
+}
+
+// Mobile Empty State Component
+function MobileEmptyState({
+    isUploading,
+    onUploadClick,
+}: {
+    isUploading: boolean;
+    onUploadClick: () => void;
+}) {
+    return (
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Upload className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h2 className="text-lg font-semibold mb-2">No Content Yet</h2>
+            <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+                Upload a ZIP file with images/videos or a JSON file with content URLs
+            </p>
+            <Button onClick={onUploadClick} disabled={isUploading} size="lg">
+                {isUploading ? (
+                    <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Uploading...
+                    </>
+                ) : (
+                    <>
+                        <Upload className="w-5 h-5 mr-2" />
+                        Upload Content
+                    </>
+                )}
+            </Button>
         </div>
     );
 }
@@ -235,9 +269,12 @@ function MobileLayout({
 }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const currentItem = contentList.find((item) => item.id === session.currentlyDisplayed);
+    const hasContent = contentList.length > 0;
+
+    const handleUploadClick = () => fileInputRef.current?.click();
 
     return (
-        <div className="min-h-screen bg-background p-4 flex flex-col safe-area-inset">
+        <div className="min-h-screen bg-background p-4 pb-safe flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <div>
@@ -250,6 +287,23 @@ function MobileLayout({
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Small upload button when content exists */}
+                    {hasContent && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleUploadClick}
+                            disabled={isUploading}
+                            className="h-8 w-8 p-0"
+                            aria-label="Upload content"
+                        >
+                            {isUploading ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Upload className="w-4 h-4" />
+                            )}
+                        </Button>
+                    )}
                     <Badge variant={isConnected ? "default" : "destructive"} className="text-xs">
                         {isConnected ? "Connected" : "Offline"}
                     </Badge>
@@ -274,39 +328,26 @@ function MobileLayout({
                 </div>
             )}
 
-            {/* Search & Select */}
-            <div className="flex-1">
-                <MobileContentSearch contentList={contentList} onSelect={onSelect} />
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col">
+                {hasContent ? (
+                    <MobileContentSearch contentList={contentList} onSelect={onSelect} />
+                ) : (
+                    <MobileEmptyState
+                        isUploading={isUploading}
+                        onUploadClick={handleUploadClick}
+                    />
+                )}
             </div>
 
-            {/* Upload Button */}
-            <div className="pt-4">
-                <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                >
-                    {isUploading ? (
-                        <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Uploading...
-                        </>
-                    ) : (
-                        <>
-                            <Upload className="w-4 h-4 mr-2" />
-                            Upload Content
-                        </>
-                    )}
-                </Button>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".zip,.json"
-                    onChange={onUpload}
-                    className="hidden"
-                />
-            </div>
+            {/* Hidden file input */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip,.json"
+                onChange={onUpload}
+                className="hidden"
+            />
         </div>
     );
 }
@@ -727,7 +768,9 @@ function ContentMeta({ item }: { item: ContentItem }) {
             <Badge variant="secondary" className="text-xs">
                 {item.type.toUpperCase()}
             </Badge>
-            <span className="text-xs text-muted-foreground">{formatFileSize(item.size)}</span>
+            <span className="text-xs text-muted-foreground">
+                {item.size > 0 ? formatFileSize(item.size) : "External"}
+            </span>
         </div>
     );
 }

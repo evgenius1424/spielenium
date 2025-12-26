@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+/* Safe area insets for iPhone notch and home indicator */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
