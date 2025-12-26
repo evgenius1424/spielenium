@@ -1,74 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
+import { Card, CardContent } from "@repo/ui/components/card";
 import { Input } from "@repo/ui/components/input";
 import { Badge } from "@repo/ui/components/badge";
 import { motion, AnimatePresence } from "framer-motion";
-import { RoomPublic, PlayerPublic, Category } from "@/lib/rooms";
+import type { RoomPublic, PlayerPublic, Category } from "@/lib/rooms";
 
-// ─────────── Animations ───────────
-const fade = {
+const FADE = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -12 },
   transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
 } as const;
 
-const pop = {
+const POP = {
   initial: { scale: 0.9, opacity: 0 },
   animate: { scale: 1, opacity: 1 },
   exit: { scale: 0.95, opacity: 0 },
   transition: { type: "spring", stiffness: 260, damping: 20 },
 } as const;
 
-const stagger = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1, transition: { staggerChildren: 0.1 } },
-  exit: { opacity: 0 },
-};
-
-// ─────────── Comparison Input ───────────
-type ComparisonInputProps = {
-  value: string;
-  onChange: (v: string) => void;
-  onSubmit: (finalValue?: number) => void;
-  loading: boolean;
-};
-
-function ComparisonInput({ value, onChange, onSubmit, loading }: ComparisonInputProps) {
-  const [side, setSide] = useState<"left" | "right">("right");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const num = Number.parseFloat(value);
-    if (Number.isNaN(num)) return;
-    onSubmit(side === "left" ? -num : num);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 items-center">
-      <div className="flex gap-2 mb-2">
-        <Button variant={side === "left" ? "default" : "outline"} onClick={() => setSide("left")} type="button">
-          Left
-        </Button>
-        <Button variant={side === "right" ? "default" : "outline"} onClick={() => setSide("right")} type="button">
-          Right
-        </Button>
-      </div>
-      <div className="flex gap-2">
-        <Input type="number" value={value} onChange={(e) => onChange(e.target.value)} disabled={loading} />
-        <Button type="submit" disabled={loading || !value.trim()}>
-          {loading ? "Sending..." : "Send"}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-// ─────────── Main Component ───────────
 export default function JoinRoom() {
   const params = useParams();
   const roomId = typeof params.roomId === "string" ? params.roomId : "";
@@ -80,7 +34,6 @@ export default function JoinRoom() {
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Load player from localStorage
   useEffect(() => {
     if (!roomId) return;
     try {
@@ -90,34 +43,35 @@ export default function JoinRoom() {
         setPlayer(parsed);
         setName(parsed.name);
       }
-    } catch { }
+    } catch {}
   }, [roomId]);
 
-  // SSE subscription
   useEffect(() => {
     if (!player || !roomId) return;
 
     const es = new EventSource(`/api/rooms/${roomId}/events`);
 
-    es.addEventListener("state", (e: MessageEvent) => {
+    const handleState = (e: MessageEvent) => {
       const payload: RoomPublic = JSON.parse(e.data);
       setRoom(payload);
       if (payload.state !== "guessing") {
         setGuess("");
         setFeedback(null);
       }
-    });
+    };
 
-    es.addEventListener("question", () => {
+    const handleQuestion = () => {
       setGuess("");
       setFeedback(null);
-    });
+    };
+
+    es.addEventListener("state", handleState);
+    es.addEventListener("question", handleQuestion);
 
     return () => es.close();
   }, [roomId, player]);
 
-  // Join room
-  async function doJoin() {
+  const doJoin = useCallback(async () => {
     if (!name.trim()) return;
     setLoading(true);
     try {
@@ -133,191 +87,474 @@ export default function JoinRoom() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [name, roomId]);
 
-  // Submit guess
-  async function submit(finalValue?: number) {
-    if (!player) return;
+  const submitGuess = useCallback(
+    async (finalValue?: number) => {
+      if (!player) return;
 
-    const num = finalValue ?? Number.parseFloat(guess);
-    if (Number.isNaN(num)) {
-      setFeedback("Please enter a valid number.");
-      return;
-    }
+      const num = finalValue ?? Number.parseFloat(guess);
+      if (Number.isNaN(num)) {
+        setFeedback("Please enter a valid number.");
+        return;
+      }
 
-    setLoading(true);
-    setFeedback("Sending your guess...");
-    try {
-      const res = await fetch(`/api/rooms/${roomId}/guess`, {
+      setLoading(true);
+      setFeedback("Sending...");
+      try {
+        const res = await fetch(`/api/rooms/${roomId}/guess`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId: player.id, guess: num }),
+        });
+        setFeedback(res.ok ? "✓ Guess sent!" : "Failed to send.");
+      } catch {
+        setFeedback("An error occurred.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [player, guess, roomId],
+  );
+
+  const pickCategory = useCallback(
+    async (category: Category) => {
+      if (!room || !player) return;
+      await fetch(`/api/rooms/${room.id}/next`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId: player.id, guess: num }),
+        body: JSON.stringify({ action: "pick", playerId: player.id, category }),
       });
-      setFeedback(res.ok ? "Guess sent! Waiting for other players." : "Failed to send guess.");
-    } catch {
-      setFeedback("An error occurred.");
-    } finally {
-      setLoading(false);
-    }
-  }
+    },
+    [room, player],
+  );
 
   return (
-    <div className="relative min-h-screen p-4 flex flex-col items-center justify-center">
-      {/* Background Gradient */}
-      <motion.div
-        className="absolute inset-0 -z-10 w-full h-full bg-gradient-to-br from-purple-100 via-white to-pink-100"
-        animate={{ rotate: [0, 1, 0], scale: [1, 1.02, 1] }}
-        transition={{ duration: 15, repeat: Infinity, repeatType: "mirror" }}
-      />
+    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
+      <div className="safe-area-inset-top" />
 
       <AnimatePresence mode="wait">
-        {/* Join Room Form */}
-        {!player && (
-          <motion.div key="join" {...fade}>
-            <Card className="w-full max-w-md mx-auto">
-              <CardHeader>
-                <CardTitle className="text-center text-2xl">Join Room {roomId}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    doJoin();
-                  }}
-                  className="flex justify-center items-center gap-2 w-full"
-                >
-                  <Input
-                    placeholder="Your name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    disabled={loading}
-                    className="flex-1 max-w-xs"
-                  />
-                  <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
-                    <Button type="submit" disabled={loading || !name.trim()}>
-                      {loading ? "Joining..." : "Join"}
-                    </Button>
-                  </motion.div>
-                </form>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Player Room */}
-        {player && (
-          <motion.div key="play" {...fade}>
-            <Card className="w-full max-w-md mx-auto">
-              <CardContent className="flex flex-col justify-center items-center h-full">
-                <CardTitle className="text-center text-xl">Hello {player.name}</CardTitle>
-              </CardContent>
-              <CardContent>
-                {!room && <div className="text-center text-muted-foreground animate-pulse">Connecting…</div>}
-
-                {/* Category Selection */}
-                {/* Category Selection */}
-                {room?.state === "category-selection" && room.currentPickerIndex != undefined && (
-                  <div className="w-full px-4 sm:px-6">
-                    {room.players[room.currentPickerIndex]?.id === player.id ? (
-                      <motion.div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 justify-items-center">
-                        {room.categories.map((category: Category) => (
-                          <motion.button
-                            key={category.name}
-                            whileHover={{ scale: 1.04 }}
-                            whileTap={{ scale: 0.97 }}
-                            onClick={() =>
-                              fetch(`/api/rooms/${room.id}/next`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ action: "pick", playerId: player.id, category }),
-                              })
-                            }
-                            className="flex flex-col items-center justify-between w-full max-w-[120px] min-h-[180px] rounded-xl border hover:bg-accent transition font-medium p-2 overflow-hidden"
-                          >
-                            {/* Icon: fixed height so it's always big */}
-                            <img
-                              src={category.logo}
-                              alt={category.name}
-                              className="h-2/3 w-2/3 object-contain mb-1"
-                            />
-
-                            {/* Name: allow wrap */}
-                            <span className="text-sm font-medium text-center break-words mt-1">
-                              {category.name}
-                            </span>
-
-                            {/* Items left: always at bottom */}
-                            <span className="text-xs text-muted-foreground text-center break-words mt-auto">
-                              {category.items.length} item{category.items.length !== 1 ? "s" : ""}
-                            </span>
-                          </motion.button>
-                        ))}
-                      </motion.div>
-                    ) : (
-                      <div className="text-muted-foreground text-center mt-4">
-                        Waiting for {room.players[room.currentPickerIndex]?.name} to pick…
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Guessing */}
-                {room?.state === "guessing" && room.currentItem && (
-                  <motion.div {...pop} className="space-y-3 mt-4">
-                    <div className="text-center">
-                      <Badge variant="secondary">{room.selectedCategory?.name}</Badge>
-                    </div>
-                    {room.currentItem.image && (
-                      <div className="mx-auto w-full max-w-sm aspect-[4/3] overflow-hidden rounded-lg border bg-muted">
-                        <img src={room.currentItem.image} alt={room.currentItem.name} className="h-full w-full object-contain" />
-                      </div>
-                    )}
-                    <div className="text-center">
-                      {room.selectedCategory?.type === "comparison"
-                        ? "Which side is more expensive and in how many %?"
-                        : `Price of ${room.currentItem.name}?`}
-                    </div>
-
-                    {room.selectedCategory?.type === "comparison" ? (
-                      <ComparisonInput value={guess} onChange={setGuess} onSubmit={submit} loading={loading} />
-                    ) : (
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          submit();
-                        }}
-                        className="flex justify-center gap-2 mt-2"
-                      >
-                        <span className="self-center text-xl">{room.selectedCategory?.type === "ruble" ? "₽" : "€"}</span>
-                        <Input type="number" value={guess} onChange={(e) => setGuess(e.target.value)} disabled={loading} />
-                        <Button type="submit" disabled={loading || !guess.trim()}>
-                          {loading ? "Sending..." : "Send"}
-                        </Button>
-                      </form>
-                    )}
-
-                    {feedback && <motion.div {...fade} className="text-center text-sm mt-2">{feedback}</motion.div>}
-                  </motion.div>
-                )}
-
-                {/* Results */}
-                {room?.state === "results" && (
-                  <motion.div {...pop} className="text-center text-muted-foreground mt-4">
-                    Check big screen for results…
-                  </motion.div>
-                )}
-
-                {/* Game Over */}
-                {room?.state === "game-over" && (
-                  <motion.div {...pop} className="text-center text-2xl font-semibold mt-4">
-                    🎉 Game over. Thanks for playing!
-                  </motion.div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+        {!player ? (
+          <JoinForm
+            key="join"
+            roomId={roomId}
+            name={name}
+            loading={loading}
+            onNameChange={setName}
+            onJoin={doJoin}
+          />
+        ) : (
+          <PlayerView
+            key="play"
+            player={player}
+            room={room}
+            guess={guess}
+            loading={loading}
+            feedback={feedback}
+            onGuessChange={setGuess}
+            onSubmitGuess={submitGuess}
+            onPickCategory={pickCategory}
+          />
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function JoinForm({
+  roomId,
+  name,
+  loading,
+  onNameChange,
+  onJoin,
+}: {
+  roomId: string;
+  name: string;
+  loading: boolean;
+  onNameChange: (v: string) => void;
+  onJoin: () => void;
+}) {
+  return (
+    <motion.div {...FADE} className="px-4 pt-8">
+      <div className="text-center mb-8">
+        <Badge className="mb-3 bg-white/10 text-white border-white/20">
+          Room {roomId}
+        </Badge>
+        <h1 className="text-3xl font-bold text-white">Join Game</h1>
+        <p className="text-slate-400 mt-2">Enter your name to play</p>
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onJoin();
+        }}
+        className="space-y-4"
+      >
+        <Input
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+          disabled={loading}
+          autoFocus
+          className="h-14 text-lg bg-white/10 border-white/20 text-white placeholder:text-slate-500 rounded-2xl"
+        />
+        <Button
+          type="submit"
+          disabled={loading || !name.trim()}
+          className="w-full h-14 text-lg font-semibold rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600"
+        >
+          {loading ? "Joining..." : "Join Game"}
+        </Button>
+      </form>
+    </motion.div>
+  );
+}
+
+function PlayerView({
+  player,
+  room,
+  guess,
+  loading,
+  feedback,
+  onGuessChange,
+  onSubmitGuess,
+  onPickCategory,
+}: {
+  player: PlayerPublic;
+  room: RoomPublic | null;
+  guess: string;
+  loading: boolean;
+  feedback: string | null;
+  onGuessChange: (v: string) => void;
+  onSubmitGuess: (finalValue?: number) => void;
+  onPickCategory: (category: Category) => void;
+}) {
+  return (
+    <motion.div {...FADE} className="px-4 pt-6 pb-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-slate-400 text-sm">Playing as</p>
+          <h2 className="text-xl font-bold text-white">{player.name}</h2>
+        </div>
+        {room && (
+          <Badge
+            variant="outline"
+            className="bg-white/10 text-white border-white/20 capitalize"
+          >
+            {room.state.replace("-", " ")}
+          </Badge>
+        )}
+      </div>
+
+      {!room && (
+        <Card className="bg-white/5 border-white/10">
+          <CardContent className="py-12 text-center">
+            <div className="animate-pulse text-slate-400">Connecting…</div>
+          </CardContent>
+        </Card>
+      )}
+
+      {room?.state === "lobby" && <LobbyState />}
+
+      {room?.state === "category-selection" && (
+        <CategorySelectionState
+          room={room}
+          playerId={player.id}
+          onPick={onPickCategory}
+        />
+      )}
+
+      {room?.state === "guessing" && room.currentItem && (
+        <GuessingState
+          room={room}
+          guess={guess}
+          loading={loading}
+          feedback={feedback}
+          onGuessChange={onGuessChange}
+          onSubmit={onSubmitGuess}
+        />
+      )}
+
+      {room?.state === "results" && <ResultsState />}
+
+      {room?.state === "game-over" && <GameOverState />}
+    </motion.div>
+  );
+}
+
+function LobbyState() {
+  return (
+    <motion.div {...POP}>
+      <Card className="bg-white/5 border-white/10">
+        <CardContent className="py-12 text-center">
+          <div className="text-4xl mb-3">🎮</div>
+          <p className="text-white font-medium">Waiting for host to start…</p>
+          <p className="text-slate-500 text-sm mt-1">Get ready!</p>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function CategorySelectionState({
+  room,
+  playerId,
+  onPick,
+}: {
+  room: RoomPublic;
+  playerId: string;
+  onPick: (category: Category) => void;
+}) {
+  const picker = room.players[room.currentPickerIndex!];
+  const isMyTurn = picker?.id === playerId;
+
+  if (!isMyTurn) {
+    return (
+      <motion.div {...POP}>
+        <Card className="bg-white/5 border-white/10">
+          <CardContent className="py-12 text-center">
+            <div className="text-4xl mb-3">🤔</div>
+            <p className="text-white font-medium">
+              {picker?.name} is choosing…
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div {...POP} className="space-y-4">
+      <div className="text-center">
+        <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 border-0">
+          Your Turn!
+        </Badge>
+        <p className="text-white mt-2 font-medium">Pick a category</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {room.categories.map((category) => (
+          <motion.button
+            key={category.name}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onPick(category)}
+            className="flex flex-col items-center p-4 rounded-2xl bg-white/5 border border-white/10 active:bg-white/10 transition-colors"
+          >
+            <img
+              src={category.logo}
+              alt={category.name}
+              className="h-16 w-16 object-contain mb-2"
+            />
+            <span className="text-white font-medium text-sm text-center">
+              {category.name}
+            </span>
+            <span className="text-slate-500 text-xs mt-1">
+              {category.items.length} items
+            </span>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+function GuessingState({
+  room,
+  guess,
+  loading,
+  feedback,
+  onGuessChange,
+  onSubmit,
+}: {
+  room: RoomPublic;
+  guess: string;
+  loading: boolean;
+  feedback: string | null;
+  onGuessChange: (v: string) => void;
+  onSubmit: (finalValue?: number) => void;
+}) {
+  const isComparison = room.selectedCategory?.type === "comparison";
+  const symbol =
+    room.selectedCategory?.type === "ruble"
+      ? "₽"
+      : room.selectedCategory?.type === "comparison"
+        ? "%"
+        : "€";
+
+  return (
+    <motion.div {...POP} className="space-y-4">
+      <div className="text-center">
+        <Badge className="bg-white/10 border-white/20 text-white mb-2">
+          {room.selectedCategory?.name}
+        </Badge>
+      </div>
+
+      {room.currentItem?.image && (
+        <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-white/5 border border-white/10">
+          <img
+            src={room.currentItem.image}
+            alt={room.currentItem.name}
+            className="h-full w-full object-contain"
+          />
+        </div>
+      )}
+
+      <div className="text-center">
+        <h3 className="text-white font-bold text-xl">
+          {room.currentItem?.name}
+        </h3>
+        <p className="text-slate-400 text-sm mt-1">
+          {isComparison ? "Which side is more expensive?" : "Guess the price"}
+        </p>
+      </div>
+
+      {isComparison ? (
+        <ComparisonInput
+          value={guess}
+          onChange={onGuessChange}
+          onSubmit={onSubmit}
+          loading={loading}
+        />
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit();
+          }}
+          className="space-y-3"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-2xl text-white font-bold">{symbol}</span>
+            <Input
+              type="number"
+              inputMode="decimal"
+              value={guess}
+              onChange={(e) => onGuessChange(e.target.value)}
+              disabled={loading}
+              placeholder="0"
+              className="flex-1 h-14 text-2xl font-bold bg-white/10 border-white/20 text-white rounded-2xl text-center"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={loading || !guess.trim()}
+            className="w-full h-14 text-lg font-semibold rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+          >
+            {loading ? "Sending..." : "Submit Guess"}
+          </Button>
+        </form>
+      )}
+
+      <AnimatePresence>
+        {feedback && (
+          <motion.p {...FADE} className="text-center text-sm text-slate-300">
+            {feedback}
+          </motion.p>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function ComparisonInput({
+  value,
+  onChange,
+  onSubmit,
+  loading,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (finalValue?: number) => void;
+  loading: boolean;
+}) {
+  const [side, setSide] = useState<"left" | "right">("right");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const num = Number.parseFloat(value);
+    if (Number.isNaN(num)) return;
+    onSubmit(side === "left" ? -num : num);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant={side === "left" ? "default" : "outline"}
+          onClick={() => setSide("left")}
+          className={`h-12 rounded-xl font-semibold ${
+            side === "left"
+              ? "bg-violet-500 hover:bg-violet-600"
+              : "bg-white/5 border-white/20 text-white"
+          }`}
+        >
+          ← Left
+        </Button>
+        <Button
+          type="button"
+          variant={side === "right" ? "default" : "outline"}
+          onClick={() => setSide("right")}
+          className={`h-12 rounded-xl font-semibold ${
+            side === "right"
+              ? "bg-violet-500 hover:bg-violet-600"
+              : "bg-white/5 border-white/20 text-white"
+          }`}
+        >
+          Right →
+        </Button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-2xl text-white font-bold">%</span>
+        <Input
+          type="number"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={loading}
+          placeholder="0"
+          className="flex-1 h-14 text-2xl font-bold bg-white/10 border-white/20 text-white rounded-2xl text-center"
+        />
+      </div>
+
+      <Button
+        type="submit"
+        disabled={loading || !value.trim()}
+        className="w-full h-14 text-lg font-semibold rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600"
+      >
+        {loading ? "Sending..." : "Submit Guess"}
+      </Button>
+    </form>
+  );
+}
+
+function ResultsState() {
+  return (
+    <motion.div {...POP}>
+      <Card className="bg-white/5 border-white/10">
+        <CardContent className="py-12 text-center">
+          <div className="text-4xl mb-3">📺</div>
+          <p className="text-white font-medium">Check the big screen!</p>
+          <p className="text-slate-500 text-sm mt-1">Results are showing…</p>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+function GameOverState() {
+  return (
+    <motion.div {...POP}>
+      <Card className="bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 border-white/10">
+        <CardContent className="py-12 text-center">
+          <div className="text-5xl mb-3">🎉</div>
+          <h2 className="text-2xl font-bold text-white">Game Over!</h2>
+          <p className="text-slate-300 mt-2">Thanks for playing!</p>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
