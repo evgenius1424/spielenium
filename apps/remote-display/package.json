@@ -13,15 +13,21 @@
   },
   "dependencies": {
     "@repo/ui": "workspace:*",
+    "@tailwindcss/typography": "^0.5.19",
+    "adm-zip": "^0.5.16",
+    "autoprefixer": "^10.4.23",
     "lucide-react": "^0.539.0",
     "next": "^16.1.1",
     "next-themes": "^0.4.6",
+    "postcss": "^8.5.6",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "tailwindcss": "^4.1.12"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:^",
     "@repo/typescript-config": "workspace:*",
+    "@types/adm-zip": "^0.5.7",
     "@types/node": "^24.3.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",

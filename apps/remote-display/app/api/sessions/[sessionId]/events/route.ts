@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
-import { getSession, createSession, type ServerEvent, subscribe } from "@/lib/sessions";
-import { randomUUID } from "crypto";
+import {
+  getOrCreateSession,
+  type SSEEvent,
+  subscribe,
+} from "@/lib/sessions";
 
-function toSSE(e: ServerEvent) {
+function toSSE(e: SSEEvent) {
   return `event: ${e.type}\ndata: ${JSON.stringify(e.payload)}\n\n`;
 }
 
@@ -14,25 +17,15 @@ export async function GET(
 ) {
   const { sessionId } = await params;
 
-  // Create session if it doesn't exist
-  let session = getSession(sessionId);
-  if (!session) {
-    createSession(sessionId);
-    session = getSession(sessionId);
-    if (!session) {
-      return new Response("Failed to create session", { status: 500 });
-    }
-  }
-
-  // Generate a unique device ID for this connection
-  const deviceId = randomUUID().slice(0, 8);
+  // Auto-create session on connect
+  const session = getOrCreateSession(sessionId);
 
   const stream = new ReadableStream({
     start(controller) {
-      const send = (e: ServerEvent) =>
+      const send = (e: SSEEvent) =>
         controller.enqueue(new TextEncoder().encode(toSSE(e)));
 
-      const unsubscribe = subscribe(session!, deviceId, send);
+      const unsubscribe = subscribe(session, send);
 
       // heartbeat to keep proxies alive
       const interval = setInterval(() => {

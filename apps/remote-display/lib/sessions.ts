@@ -1,191 +1,322 @@
 import { randomUUID } from "crypto";
-
-export type ContentType = "image" | "video" | "none";
+import AdmZip from "adm-zip";
 
 export type ContentItem = {
   id: string;
   name: string;
-  type: ContentType;
-  url: string;
-  thumbnail?: string;
+  type: "image" | "video";
+  data: string; // base64 encoded
+  mimeType: string;
   size: number;
-  uploadedAt: string;
+  uploadedAt: string; // ISO string
 };
 
-export type DisplaySession = {
+export type ContentItemPublic = Omit<ContentItem, "data">;
+
+export type Session = {
   id: string;
-  createdAt: number;
-  currentContent: ContentItem | null;
   contentLibrary: Map<string, ContentItem>;
-  connectedDevices: Set<string>;
-  subscribers: Set<(event: ServerEvent) => void>;
+  currentlyDisplayed: string | null;
+  subscribers: Set<(event: SSEEvent) => void>;
+  lastActivity: string; // ISO string
 };
 
-export type ServerEvent =
-  | { type: "session-state"; payload: DisplaySessionPublic }
-  | { type: "content-list"; payload: ContentItem[] }
-  | {
-      type: "content-selected";
-      payload: {
-        type: ContentType;
-        url: string;
-        name: string;
-      }
-    }
-  | { type: "content-cleared"; payload: {} }
-  | { type: "device-connected"; payload: { deviceId: string } }
-  | { type: "device-disconnected"; payload: { deviceId: string } };
+export type SSEEvent =
+  | { type: "session-state"; payload: SessionStatePayload }
+  | { type: "content-list"; payload: ContentItemPublic[] }
+  | { type: "content-selected"; payload: { type: string; url: string; name: string } }
+  | { type: "content-cleared"; payload: {} };
 
-export type DisplaySessionPublic = {
+export type SessionStatePayload = {
   id: string;
-  state: "waiting" | "showing-content" | "error";
-  currentContent: ContentItem | null;
-  connectedDevices: number;
   hasContent: boolean;
+  currentlyDisplayed: string | null;
+  connectedDevices: number;
 };
 
-const sessions = new Map<string, DisplaySession>();
+// Constants
+const IMAGE_FORMATS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+const VIDEO_FORMATS = [".mp4", ".webm", ".mov", ".avi"];
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_SESSION_SIZE = 200 * 1024 * 1024; // 200MB
 
-export function createSession(customId?: string): DisplaySessionPublic {
-  const id = customId || randomUUID().slice(0, 6).toUpperCase();
+// In-memory storage
+const sessions = new Map<string, Session>();
+const cleanupTimers = new Map<string, NodeJS.Timeout>();
 
-  // If session already exists, return it
-  if (sessions.has(id)) {
-    return sessionToPublic(sessions.get(id)!);
-  }
-
-  const session: DisplaySession = {
-    id,
-    createdAt: Date.now(),
-    currentContent: null,
-    contentLibrary: new Map(),
-    connectedDevices: new Set(),
-    subscribers: new Set(),
-  };
-
-  // Add some demo content
-  addDemoContent(session);
-
-  sessions.set(id, session);
-  return sessionToPublic(session);
+// Helper functions
+function toPublicContentItem(item: ContentItem): ContentItemPublic {
+  const { data, ...rest } = item;
+  return rest;
 }
 
-function addDemoContent(session: DisplaySession) {
-  const demoContent: ContentItem[] = [
-    {
-      id: "demo-1",
-      name: "Beautiful Sunset.jpg",
-      type: "image",
-      url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=600&fit=crop",
-      thumbnail: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=200&h=150&fit=crop",
-      size: 2048000,
-      uploadedAt: new Date().toISOString(),
-    },
-    {
-      id: "demo-2",
-      name: "Mountain Lake.jpg",
-      type: "image",
-      url: "https://images.unsplash.com/photo-1506197603052-3cc9c3a201bd?w=800&h=600&fit=crop",
-      thumbnail: "https://images.unsplash.com/photo-1506197603052-3cc9c3a201bd?w=200&h=150&fit=crop",
-      size: 1824000,
-      uploadedAt: new Date().toISOString(),
-    },
-    {
-      id: "demo-3",
-      name: "City Skyline.jpg",
-      type: "image",
-      url: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=800&h=600&fit=crop",
-      thumbnail: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=200&h=150&fit=crop",
-      size: 2156000,
-      uploadedAt: new Date().toISOString(),
-    }
-  ];
-
-  demoContent.forEach(item => {
-    session.contentLibrary.set(item.id, item);
-  });
-}
-
-export function getSession(id: string): DisplaySession | undefined {
-  return sessions.get(id);
-}
-
-export function sessionToPublic(session: DisplaySession): DisplaySessionPublic {
+function getSessionState(session: Session): SessionStatePayload {
   return {
     id: session.id,
-    state: session.currentContent ? "showing-content" : "waiting",
-    currentContent: session.currentContent,
-    connectedDevices: session.connectedDevices.size,
     hasContent: session.contentLibrary.size > 0,
+    currentlyDisplayed: session.currentlyDisplayed,
+    connectedDevices: session.subscribers.size,
   };
 }
 
-export function subscribe(session: DisplaySession, deviceId: string, cb: (e: ServerEvent) => void) {
-  session.subscribers.add(cb);
-  session.connectedDevices.add(deviceId);
+// Session management
+export function getOrCreateSession(sessionId: string): Session {
+  let session = sessions.get(sessionId);
+  if (!session) {
+    session = {
+      id: sessionId,
+      contentLibrary: new Map(),
+      currentlyDisplayed: null,
+      subscribers: new Set(),
+      lastActivity: new Date().toISOString(),
+    };
+    sessions.set(sessionId, session);
+    cancelCleanup(sessionId);
+  }
+  session.lastActivity = new Date().toISOString();
+  return session;
+}
+
+export function getSession(sessionId: string): Session | undefined {
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.lastActivity = new Date().toISOString();
+  }
+  return session;
+}
+
+// Subscription management
+export function subscribe(session: Session, callback: (event: SSEEvent) => void): () => void {
+  session.subscribers.add(callback);
+  session.lastActivity = new Date().toISOString();
+  cancelCleanup(session.id);
 
   // Send initial state
-  cb({ type: "session-state", payload: sessionToPublic(session) });
-  cb({ type: "content-list", payload: Array.from(session.contentLibrary.values()) });
+  callback({ type: "session-state", payload: getSessionState(session) });
+  callback({
+    type: "content-list",
+    payload: Array.from(session.contentLibrary.values()).map(toPublicContentItem)
+  });
 
-  // Broadcast device connection
-  broadcast(session, { type: "device-connected", payload: { deviceId } });
-
+  // Return unsubscribe function
   return () => {
-    session.subscribers.delete(cb);
-    session.connectedDevices.delete(deviceId);
-    broadcast(session, { type: "device-disconnected", payload: { deviceId } });
+    session.subscribers.delete(callback);
+    session.lastActivity = new Date().toISOString();
+
+    // Schedule cleanup if no subscribers remain
+    if (session.subscribers.size === 0) {
+      scheduleCleanup(session.id);
+    }
   };
 }
 
-function broadcast(session: DisplaySession, e: ServerEvent) {
-  for (const cb of session.subscribers) {
+export function broadcast(session: Session, event: SSEEvent): void {
+  session.lastActivity = new Date().toISOString();
+  for (const callback of session.subscribers) {
     try {
-      cb(e);
-    } catch {
-      /* ignore */
+      callback(event);
+    } catch (error) {
+      // Ignore subscriber errors
     }
   }
 }
 
-export function selectContent(session: DisplaySession, contentId: string): boolean {
-  const content = session.contentLibrary.get(contentId);
-  if (!content) return false;
+// Content management
+function clearContentSilent(session: Session): void {
+  session.contentLibrary.clear();
+  session.currentlyDisplayed = null;
+}
 
-  session.currentContent = content;
+export function clearContent(session: Session): void {
+  session.lastActivity = new Date().toISOString();
+  clearContentSilent(session);
+
+  broadcast(session, { type: "content-list", payload: [] });
+  broadcast(session, { type: "content-cleared", payload: {} });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
+}
+
+export async function addContent(session: Session, file: File): Promise<void> {
+  session.lastActivity = new Date().toISOString();
+
+  // Clear existing content silently
+  clearContentSilent(session);
+
+  // Validate file size
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File size (${formatFileSize(file.size)}) exceeds maximum allowed size (${formatFileSize(MAX_FILE_SIZE)})`);
+  }
+
+  // Check session size limit
+  const currentSize = Array.from(session.contentLibrary.values())
+    .reduce((total, item) => total + item.size, 0);
+  if (currentSize + file.size > MAX_SESSION_SIZE) {
+    throw new Error(`Session size would exceed maximum allowed size (${formatFileSize(MAX_SESSION_SIZE)})`);
+  }
+
+  // Process file based on type
+  if (file.name.endsWith(".zip") || file.type === "application/zip") {
+    await processZipFile(session, file);
+  } else if (file.name.endsWith(".json") || file.type === "application/json") {
+    await processJsonFile(session, file);
+  } else {
+    throw new Error("Unsupported file type. Only ZIP and JSON files are allowed.");
+  }
+
+  // Broadcast updated content and session state
+  broadcast(session, {
+    type: "content-list",
+    payload: Array.from(session.contentLibrary.values()).map(toPublicContentItem)
+  });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
+}
+
+export function selectContent(session: Session, contentId: string): boolean {
+  session.lastActivity = new Date().toISOString();
+  const content = session.contentLibrary.get(contentId);
+  if (!content) {
+    return false;
+  }
+
+  session.currentlyDisplayed = contentId;
 
   broadcast(session, {
     type: "content-selected",
     payload: {
       type: content.type,
-      url: content.url,
+      url: `/api/sessions/${session.id}/content/${contentId}`,
       name: content.name,
     },
   });
-
-  broadcast(session, { type: "session-state", payload: sessionToPublic(session) });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
 
   return true;
 }
 
-export function clearContent(session: DisplaySession) {
-  session.currentContent = null;
+export function clearDisplay(session: Session): void {
+  session.lastActivity = new Date().toISOString();
+  session.currentlyDisplayed = null;
 
   broadcast(session, { type: "content-cleared", payload: {} });
-  broadcast(session, { type: "session-state", payload: sessionToPublic(session) });
+  broadcast(session, { type: "session-state", payload: getSessionState(session) });
 }
 
-export function addContent(session: DisplaySession, content: Omit<ContentItem, "id" | "uploadedAt">): ContentItem {
-  const item: ContentItem = {
-    ...content,
-    id: randomUUID(),
-    uploadedAt: new Date().toISOString(),
+// File processing helpers
+async function processZipFile(session: Session, file: File): Promise<void> {
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const zip = new AdmZip(buffer);
+  const entries = zip.getEntries();
+
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+
+    const fileName = entry.entryName.split("/").pop() || entry.entryName;
+    const ext = getExtension(fileName);
+
+    if (!isValidContentFormat(ext)) continue;
+
+    const entryData = entry.getData();
+    const base64Data = entryData.toString("base64");
+    const mimeType = getMimeType(ext);
+
+    const contentItem: ContentItem = {
+      id: randomUUID(),
+      name: getNameWithoutExtension(fileName),
+      type: IMAGE_FORMATS.includes(ext) ? "image" : "video",
+      data: base64Data,
+      mimeType,
+      size: entryData.length,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    session.contentLibrary.set(contentItem.id, contentItem);
+  }
+}
+
+async function processJsonFile(session: Session, file: File): Promise<void> {
+  const jsonText = await file.text();
+  const data = JSON.parse(jsonText);
+
+  if (!data.items || !Array.isArray(data.items)) {
+    throw new Error("JSON file must contain an 'items' array");
+  }
+
+  for (const item of data.items) {
+    if (!item.name || !item.url) continue;
+
+    const url = item.url.toLowerCase();
+    const isImage = IMAGE_FORMATS.some(ext => url.includes(ext));
+    const isVideo = VIDEO_FORMATS.some(ext => url.includes(ext));
+
+    if (!isImage && !isVideo) continue;
+
+    const contentItem: ContentItem = {
+      id: randomUUID(),
+      name: item.name,
+      type: isImage ? "image" : "video",
+      data: item.url, // For JSON, we store the URL as data
+      mimeType: isImage ? "image/jpeg" : "video/mp4", // Default MIME types
+      size: 0, // Unknown size for external URLs
+      uploadedAt: new Date().toISOString(),
+    };
+
+    session.contentLibrary.set(contentItem.id, contentItem);
+  }
+}
+
+// Session cleanup management
+function scheduleCleanup(sessionId: string): void {
+  cancelCleanup(sessionId); // Cancel any existing timer
+
+  const timer = setTimeout(() => {
+    sessions.delete(sessionId);
+    cleanupTimers.delete(sessionId);
+  }, 5 * 60 * 1000); // 5 minutes
+
+  cleanupTimers.set(sessionId, timer);
+}
+
+function cancelCleanup(sessionId: string): void {
+  const timer = cleanupTimers.get(sessionId);
+  if (timer) {
+    clearTimeout(timer);
+    cleanupTimers.delete(sessionId);
+  }
+}
+
+// Utility functions
+function isValidContentFormat(ext: string): boolean {
+  return [...IMAGE_FORMATS, ...VIDEO_FORMATS].includes(ext);
+}
+
+function getExtension(fileName: string): string {
+  return fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
+}
+
+function getNameWithoutExtension(fileName: string): string {
+  return fileName.substring(0, fileName.lastIndexOf("."));
+}
+
+function getMimeType(ext: string): string {
+  const mimeMap: Record<string, string> = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".mp4": "video/mp4",
+    ".webm": "video/webm",
+    ".mov": "video/quicktime",
+    ".avi": "video/x-msvideo",
   };
+  return mimeMap[ext] || "application/octet-stream";
+}
 
-  session.contentLibrary.set(item.id, item);
-
-  broadcast(session, { type: "content-list", payload: Array.from(session.contentLibrary.values()) });
-  broadcast(session, { type: "session-state", payload: sessionToPublic(session) });
-
-  return item;
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
