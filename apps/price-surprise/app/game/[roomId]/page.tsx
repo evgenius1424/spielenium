@@ -126,8 +126,8 @@ export default function HostRoom() {
     >
       <Header room={room} copied={copied} onCopyLink={copyJoinLink} />
 
-      <div className="flex-1 flex gap-6 p-4 pt-0 min-h-0">
-        <main className="flex-1 min-w-0 overflow-auto">
+      <div className="flex-1 flex min-h-0 relative">
+        <main className="flex-1 flex items-center justify-center p-4 overflow-auto">
           <AnimatePresence mode="wait">
             {room.state === "lobby" && (
               <LobbyPhase
@@ -168,7 +168,7 @@ export default function HostRoom() {
           </AnimatePresence>
         </main>
 
-        <aside className="w-80 flex-shrink-0">
+        <aside className="absolute top-4 right-4 w-72">
           <Scoreboard
             players={rankedPlayers}
             winners={winners}
@@ -238,7 +238,7 @@ function Scoreboard({
   isGameOver: boolean;
 }) {
   return (
-    <Card className="h-full flex flex-col">
+    <Card className="max-h-[calc(100vh-8rem)] flex flex-col">
       <CardHeader className="flex-shrink-0">
         <CardTitle>Players</CardTitle>
       </CardHeader>
@@ -292,28 +292,23 @@ function LobbyPhase({
   disabled: boolean;
 }) {
   return (
-    <motion.div
-      {...PAGE_FADE}
-      className="h-full flex items-center justify-center"
-    >
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Lobby</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-center text-muted-foreground">
-            Waiting for players to join…
-          </p>
-          <Button
-            onClick={onStart}
-            disabled={disabled}
-            className="mx-auto h-12 text-lg"
-          >
-            Start Game
-          </Button>
-        </CardContent>
-      </Card>
-    </motion.div>
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="text-2xl text-center">Lobby</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <p className="text-center text-muted-foreground">
+          Waiting for players to join…
+        </p>
+        <Button
+          onClick={onStart}
+          disabled={disabled}
+          className="mx-auto h-12 text-lg"
+        >
+          Start Game
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -325,43 +320,43 @@ function CategorySelectionPhase({
   categories: RoomPublic["categories"];
 }) {
   return (
-    <motion.div {...PAGE_FADE} className="h-full flex flex-col">
-      <Card className="flex-1 flex flex-col">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">
-            Category Selection
-          </CardTitle>
-          <p className="text-center text-lg text-muted-foreground">
-            {pickerName} is choosing a category…
-          </p>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {categories.map((category) => (
-              <div
-                key={category.name}
-                className="flex flex-col items-center rounded-xl border p-3 hover:bg-accent/50 transition-colors"
-              >
-                <div className="aspect-square w-full flex items-center justify-center overflow-hidden mb-2">
+    <Card className="w-full max-w-3xl">
+      <CardHeader>
+        <CardTitle className="text-2xl text-center">
+          Category Selection
+        </CardTitle>
+        <p className="text-center text-lg text-muted-foreground">
+          {pickerName} is choosing a category…
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {categories.map((category) => (
+            <div
+              key={category.name}
+              className="flex flex-col items-center rounded-xl border p-3 hover:bg-accent/50 transition-colors"
+            >
+              <div className="aspect-square w-full flex items-center justify-center overflow-hidden mb-2">
+                {category.logo && (
                   <img
                     src={category.logo}
                     alt={category.name}
                     className="h-full w-full object-contain"
                   />
-                </div>
-                <span className="text-sm font-medium text-center">
-                  {category.name}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {category.items.length} item
-                  {category.items.length !== 1 ? "s" : ""} left
-                </span>
+                )}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+              <span className="text-sm font-medium text-center">
+                {category.name}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {category.items.length} item
+                {category.items.length !== 1 ? "s" : ""} left
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -375,45 +370,40 @@ function GuessingPhase({
   onCloseRound: () => void;
 }) {
   return (
-    <motion.div
-      {...PAGE_FADE}
-      className="h-full flex items-center justify-center"
-    >
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-center">
-            <Badge variant="secondary" className="mb-2">
-              {categoryName}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
-          >
-            <img
-              src={item.image}
-              alt={item.name}
-              className="h-full w-full object-contain"
-            />
-          </motion.div>
-          <p className="text-center text-2xl">
-            What is the price of{" "}
-            <span className="text-primary font-bold">{item.name}</span>?
-          </p>
-          <p className="text-center text-muted-foreground">
-            Players: enter your guesses on your phones.
-          </p>
-          <div className="flex justify-center">
-            <Button onClick={onCloseRound} className="h-12 px-8 text-lg">
-              Close Round
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+    <Card className="w-full max-w-2xl">
+      <CardHeader>
+        <CardTitle className="text-center">
+          <Badge variant="secondary" className="mb-2">
+            {categoryName}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
+        >
+          <img
+            src={item.image}
+            alt={item.name}
+            className="h-full w-full object-contain"
+          />
+        </motion.div>
+        <p className="text-center text-2xl">
+          What is the price of{" "}
+          <span className="text-primary font-bold">{item.name}</span>?
+        </p>
+        <p className="text-center text-muted-foreground">
+          Players: enter your guesses on your phones.
+        </p>
+        <div className="flex justify-center">
+          <Button onClick={onCloseRound} className="h-12 px-8 text-lg">
+            Close Round
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -432,86 +422,77 @@ function ResultsPhase({
     categoryType === "ruble" ? "₽" : categoryType === "comparison" ? "%" : "€";
 
   return (
-    <motion.div
-      {...PAGE_FADE}
-      className="h-full flex items-center justify-center"
-    >
-      <Card className="w-full max-w-3xl">
-        <CardHeader>
-          <CardTitle className="text-center text-2xl">Round Results</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <motion.div
-            initial={{ rotateX: 90 }}
-            animate={{ rotateX: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
-          >
-            <img
-              src={item.imageAnswer}
-              alt={item.name}
-              className="h-full w-full object-contain"
-            />
-          </motion.div>
-          <p className="text-center text-2xl">
-            The price of{" "}
-            <span className="text-primary font-bold">{item.name}</span> is{" "}
-            <span className="text-primary font-bold">{item.price}</span>!
-          </p>
-          <motion.div
-            variants={STAGGER}
-            initial="initial"
-            animate="animate"
-            className="grid grid-cols-2 md:grid-cols-3 gap-3"
-          >
-            {diffs.map((d) => (
-              <motion.div
-                key={d.playerId}
-                variants={POP}
-                className="rounded-xl border p-3 text-center"
-              >
-                <p className="font-semibold truncate">{d.name}</p>
-                {Number.isFinite(d.diff) ? (
-                  <>
-                    <p className="text-sm text-muted-foreground">Guess</p>
-                    <p className="text-xl font-bold">
-                      {symbol} {d.guess}
-                    </p>
-                    <p className="text-sm">
-                      Diff: {symbol} {Math.round(d.diff)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground">No guess</p>
-                )}
-              </motion.div>
-            ))}
-          </motion.div>
-          <div className="flex justify-center">
-            <Button onClick={onNext} className="h-12 px-8 text-lg">
-              Next
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+    <Card className="w-full max-w-3xl">
+      <CardHeader>
+        <CardTitle className="text-center text-2xl">Round Results</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <motion.div
+          initial={{ rotateX: 90 }}
+          animate={{ rotateX: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
+        >
+          <img
+            src={item.imageAnswer}
+            alt={item.name}
+            className="h-full w-full object-contain"
+          />
+        </motion.div>
+        <p className="text-center text-2xl">
+          The price of{" "}
+          <span className="text-primary font-bold">{item.name}</span> is{" "}
+          <span className="text-primary font-bold">{item.price}</span>!
+        </p>
+        <motion.div
+          variants={STAGGER}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-2 md:grid-cols-3 gap-3"
+        >
+          {diffs.map((d) => (
+            <motion.div
+              key={d.playerId}
+              variants={POP}
+              className="rounded-xl border p-3 text-center"
+            >
+              <p className="font-semibold truncate">{d.name}</p>
+              {Number.isFinite(d.diff) ? (
+                <>
+                  <p className="text-sm text-muted-foreground">Guess</p>
+                  <p className="text-xl font-bold">
+                    {symbol} {d.guess}
+                  </p>
+                  <p className="text-sm">
+                    Diff: {symbol} {Math.round(d.diff)}
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">No guess</p>
+              )}
+            </motion.div>
+          ))}
+        </motion.div>
+        <div className="flex justify-center">
+          <Button onClick={onNext} className="h-12 px-8 text-lg">
+            Next
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function GameOverPhase() {
   return (
-    <motion.div
-      {...PAGE_FADE}
-      className="h-full flex items-center justify-center"
-    >
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-center text-3xl">
-            🎉 Game Over 🎉
-          </CardTitle>
-        </CardHeader>
-      </Card>
-    </motion.div>
+    <Card className="w-full max-w-md">
+      <CardHeader>
+        <CardTitle className="text-center text-3xl">🎉 Game Over 🎉</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-center text-muted-foreground">Thanks for playing!</p>
+      </CardContent>
+    </Card>
   );
 }
 
