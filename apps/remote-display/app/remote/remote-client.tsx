@@ -29,26 +29,32 @@ type ViewMode = "grid" | "list";
 
 // Custom hook for mobile detection - mobile-first approach
 function useIsMobile() {
-    const [isMobile, setIsMobile] = useState(true); // Start with mobile as default
+    const [isMobile, setIsMobile] = useState<boolean | null>(null);
 
     useEffect(() => {
         const checkMobile = () => {
             const width = window.innerWidth;
             const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-            // Consider it desktop only if width >= 1024px AND no touch OR width >= 1200px
             const isDesktop = width >= 1024 && (!isTouchDevice || width >= 1200);
             setIsMobile(!isDesktop);
         };
 
-        // Run immediately to avoid flash
         checkMobile();
-        window.addEventListener("resize", checkMobile);
-        return () => window.removeEventListener("resize", checkMobile);
+
+        const mediaQuery = window.matchMedia('(min-width: 1024px)');
+        const handleChange = () => checkMobile();
+
+        mediaQuery.addEventListener('change', handleChange);
+        window.addEventListener('resize', handleChange);
+
+        return () => {
+            mediaQuery.removeEventListener('change', handleChange);
+            window.removeEventListener('resize', handleChange);
+        };
     }, []);
 
-    return isMobile;
+    return isMobile ?? true;
 }
-
 // Custom hook for session management
 function useRemoteSession(sessionId: string) {
     const [session, setSession] = useState<SessionState>({
@@ -140,22 +146,19 @@ function useRemoteSession(sessionId: string) {
 }
 // Mobile Content Search Component
 function MobileContentSearch({
-    contentList,
-    onSelect,
-}: {
+                                 contentList,
+                                 onSelect,
+                             }: {
     contentList: ContentItem[];
     onSelect: (item: ContentItem) => void;
 }) {
     const [query, setQuery] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
+    const [debouncedQuery, setDebouncedQuery] = useState(query);
 
-    // Auto-focus on mount
     useEffect(() => {
         inputRef.current?.focus();
     }, []);
-
-    // Debounced search results with 150ms delay
-    const [debouncedQuery, setDebouncedQuery] = useState(query);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -165,21 +168,39 @@ function MobileContentSearch({
         return () => clearTimeout(timer);
     }, [query]);
 
+    useEffect(() => {
+        const handleGlobalFocus = () => {
+            if (document.activeElement !== inputRef.current) {
+                inputRef.current?.focus();
+            }
+        };
+
+        document.addEventListener('click', handleGlobalFocus);
+        document.addEventListener('focusout', handleGlobalFocus);
+
+        return () => {
+            document.removeEventListener('click', handleGlobalFocus);
+            document.removeEventListener('focusout', handleGlobalFocus);
+        };
+    }, []);
+
     const results = useMemo(() => {
         const searchQuery = debouncedQuery.trim().toLowerCase();
         const filtered = searchQuery
             ? contentList.filter(item =>
                 item.name.toLowerCase().includes(searchQuery)
             )
-            : contentList; // Show all if no query
+            : contentList;
 
-        return filtered.slice(0, 3); // Top 3 only
+        return filtered.slice(0, 3);
     }, [contentList, debouncedQuery]);
 
     const handleSelect = (item: ContentItem) => {
-        // Dismiss keyboard on iOS
-        inputRef.current?.blur();
         onSelect(item);
+        setQuery("");
+        setTimeout(() => {
+            inputRef.current?.focus();
+        }, 50);
     };
 
     return (
@@ -191,7 +212,7 @@ function MobileContentSearch({
                     placeholder="Search content..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    className="pl-10 pr-10 text-base" // text-base prevents iOS zoom
+                    className="pl-10 pr-10 text-base"
                     autoComplete="off"
                     autoCapitalize="off"
                     autoCorrect="off"
@@ -199,9 +220,13 @@ function MobileContentSearch({
                 />
                 {query && (
                     <button
-                        onClick={() => setQuery("")}
+                        onClick={() => {
+                            setQuery("");
+                            inputRef.current?.focus();
+                        }}
                         className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-accent rounded-sm"
                         aria-label="Clear search"
+                        onMouseDown={(e) => e.preventDefault()}
                     >
                         <X className="w-4 h-4 text-muted-foreground" />
                     </button>
@@ -218,6 +243,7 @@ function MobileContentSearch({
                         <button
                             key={item.id}
                             onClick={() => handleSelect(item)}
+                            onMouseDown={(e) => e.preventDefault()}
                             className="w-full flex items-center gap-3 p-3 hover:bg-accent text-left active:scale-95 transition-all duration-100 active:bg-accent/80 touch-manipulation"
                             style={{ WebkitTapHighlightColor: 'transparent' }}
                         >
@@ -237,7 +263,6 @@ function MobileContentSearch({
         </div>
     );
 }
-
 // Mobile Empty State Component
 function MobileEmptyState({
     isUploading,
