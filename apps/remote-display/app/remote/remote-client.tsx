@@ -60,6 +60,7 @@ function useRemoteSession(sessionId: string) {
     const [contentList, setContentList] = useState<ContentItem[]>([]);
     const [isConnected, setIsConnected] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isInitializing, setIsInitializing] = useState(true);
 
     useEffect(() => {
         const es = new EventSource(`/api/sessions/${sessionId}/events`);
@@ -75,6 +76,7 @@ function useRemoteSession(sessionId: string) {
             const payload: ContentItem[] = JSON.parse(e.data);
             setContentList(payload);
             setSession((prev) => ({ ...prev, hasContent: payload.length > 0 }));
+            setIsInitializing(false);
         });
 
         return () => es.close();
@@ -88,7 +90,6 @@ function useRemoteSession(sessionId: string) {
         });
         if (response.ok) {
             setSession((prev) => ({ ...prev, currentlyDisplayed: item.id }));
-            // Haptic feedback on mobile
             if ('vibrate' in navigator) {
                 navigator.vibrate(10);
             }
@@ -131,12 +132,12 @@ function useRemoteSession(sessionId: string) {
         contentList,
         isConnected,
         isUploading,
+        isInitializing,
         selectContent,
         clearDisplay,
         uploadFile,
     };
 }
-
 // Mobile Content Search Component
 function MobileContentSearch({
     contentList,
@@ -392,6 +393,7 @@ function RemoteControlContent() {
         contentList,
         isConnected,
         isUploading,
+        isInitializing,
         selectContent,
         clearDisplay,
         uploadFile,
@@ -407,10 +409,12 @@ function RemoteControlContent() {
         }
 
         await uploadFile(file);
-
-        // Clear file input
         event.target.value = "";
     };
+
+    if (isInitializing) {
+        return <LoadingFallback />;
+    }
 
     if (isMobile) {
         return (
@@ -438,7 +442,6 @@ function RemoteControlContent() {
         />
     );
 }
-
 // Desktop Layout Component (existing layout preserved for desktop)
 function DesktopLayout({
     session,
