@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui/components/card";
@@ -27,19 +27,8 @@ type SessionState = {
 type TypeFilter = "all" | "image" | "video";
 type ViewMode = "grid" | "list";
 
-export default function RemoteClient() {
-    return (
-        <Suspense fallback={<LoadingFallback />}>
-            <RemoteControlContent />
-        </Suspense>
-    );
-}
-
-function RemoteControlContent() {
-    const searchParams = useSearchParams();
-    const sessionId = searchParams.get("session") || "demo";
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
+// Custom hook for session management
+function useRemoteSession(sessionId: string) {
     const [session, setSession] = useState<SessionState>({
         id: sessionId,
         hasContent: false,
@@ -47,9 +36,6 @@ function RemoteControlContent() {
         connectedDevices: 1,
     });
     const [contentList, setContentList] = useState<ContentItem[]>([]);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-    const [viewMode, setViewMode] = useState<ViewMode>("grid");
     const [isConnected, setIsConnected] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
 
@@ -72,12 +58,6 @@ function RemoteControlContent() {
         return () => es.close();
     }, [sessionId]);
 
-    const filteredContent = contentList.filter((item) => {
-        const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesType = typeFilter === "all" || item.type === typeFilter;
-        return matchesSearch && matchesType;
-    });
-
     const selectContent = async (item: ContentItem) => {
         const response = await fetch(`/api/sessions/${sessionId}/display`, {
             method: "POST",
@@ -86,6 +66,10 @@ function RemoteControlContent() {
         });
         if (response.ok) {
             setSession((prev) => ({ ...prev, currentlyDisplayed: item.id }));
+            // Haptic feedback on mobile
+            if ('vibrate' in navigator) {
+                navigator.vibrate(10);
+            }
         }
     };
 
@@ -94,19 +78,8 @@ function RemoteControlContent() {
         setSession((prev) => ({ ...prev, currentlyDisplayed: null }));
     };
 
-    const handleUploadClick = () => fileInputRef.current?.click();
-
-    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        if (!file.name.endsWith(".zip") && !file.name.endsWith(".json")) {
-            alert("Please select a ZIP file or JSON file");
-            return;
-        }
-
+    const uploadFile = async (file: File) => {
         setIsUploading(true);
-
         try {
             const formData = new FormData();
             formData.append("file", file);
@@ -128,9 +101,312 @@ function RemoteControlContent() {
             alert(`Upload failed: ${error instanceof Error ? error.message : "Unknown error"}`);
         } finally {
             setIsUploading(false);
-            if (fileInputRef.current) fileInputRef.current.value = "";
         }
     };
+
+    return {
+        session,
+        contentList,
+        isConnected,
+        isUploading,
+        selectContent,
+        clearDisplay,
+        uploadFile,
+    };
+}
+
+// Mobile Content Search Component
+function MobileContentSearch({
+    contentList,
+    onSelect,
+}: {
+    contentList: ContentItem[];
+    onSelect: (item: ContentItem) => void;
+}) {
+    const [query, setQuery] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Auto-focus on mount
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
+
+    // Debounced search results with 150ms delay
+    const [debouncedQuery, setDebouncedQuery] = useState(query);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedQuery(query);
+        }, 150);
+
+        return () => clearTimeout(timer);
+    }, [query]);
+
+    const results = useMemo(() => {
+        const searchQuery = debouncedQuery.trim().toLowerCase();
+        const filtered = searchQuery
+            ? contentList.filter(item =>
+                item.name.toLowerCase().includes(searchQuery)
+            )
+            : contentList; // Show all if no query
+
+        return filtered.slice(0, 3); // Top 3 only
+    }, [contentList, debouncedQuery]);
+
+    const handleSelect = (item: ContentItem) => {
+        // Dismiss keyboard on iOS
+        inputRef.current?.blur();
+        onSelect(item);
+    };
+
+    return (
+        <div className="space-y-3">
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                    ref={inputRef}
+                    placeholder="Search content..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="pl-10 pr-10 text-base" // text-base prevents iOS zoom
+                    autoComplete="off"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                />
+                {query && (
+                    <button
+                        onClick={() => setQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-accent rounded-sm"
+                        aria-label="Clear search"
+                    >
+                        <X className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                )}
+            </div>
+
+            <div className="rounded-lg border divide-y">
+                {results.length === 0 ? (
+                    <div className="p-4 text-center text-muted-foreground text-sm">
+                        {query ? "No content found" : "No content uploaded"}
+                    </div>
+                ) : (
+                    results.map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => handleSelect(item)}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-accent text-left active:scale-95 transition-all duration-100 active:bg-accent/80 touch-manipulation"
+                            style={{ WebkitTapHighlightColor: 'transparent' }}
+                        >
+                            {item.type === "image" ? (
+                                <Image className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                            ) : (
+                                <Video className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                            )}
+                            <span className="flex-1 truncate font-medium">{item.name}</span>
+                            <span className="text-sm text-muted-foreground flex-shrink-0">
+                                {formatFileSize(item.size)}
+                            </span>
+                        </button>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+}
+
+// Mobile Layout Component
+function MobileLayout({
+    session,
+    contentList,
+    isConnected,
+    isUploading,
+    onSelect,
+    onClearDisplay,
+    onUpload,
+}: {
+    session: SessionState;
+    contentList: ContentItem[];
+    isConnected: boolean;
+    isUploading: boolean;
+    onSelect: (item: ContentItem) => void;
+    onClearDisplay: () => void;
+    onUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const currentItem = contentList.find((item) => item.id === session.currentlyDisplayed);
+
+    return (
+        <div className="min-h-screen bg-background p-4 flex flex-col safe-area-inset">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h1 className="text-lg font-bold flex items-center gap-2">
+                        <Monitor className="w-5 h-5" />
+                        Remote
+                    </h1>
+                    <p className="text-sm text-muted-foreground">
+                        Session: <span className="font-mono">{session.id}</span>
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Badge variant={isConnected ? "default" : "destructive"} className="text-xs">
+                        {isConnected ? "Connected" : "Offline"}
+                    </Badge>
+                    {session.connectedDevices > 1 && (
+                        <Badge variant="secondary" className="text-xs">
+                            {session.connectedDevices}
+                        </Badge>
+                    )}
+                </div>
+            </div>
+
+            {/* Currently Displaying */}
+            {currentItem && (
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg mb-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Monitor className="w-4 h-4 text-primary flex-shrink-0" />
+                        <span className="truncate text-sm font-medium">{currentItem.name}</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={onClearDisplay}>
+                        <X className="w-4 h-4" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Search & Select */}
+            <div className="flex-1">
+                <MobileContentSearch contentList={contentList} onSelect={onSelect} />
+            </div>
+
+            {/* Upload Button */}
+            <div className="pt-4">
+                <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                >
+                    {isUploading ? (
+                        <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Uploading...
+                        </>
+                    ) : (
+                        <>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload Content
+                        </>
+                    )}
+                </Button>
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".zip,.json"
+                    onChange={onUpload}
+                    className="hidden"
+                />
+            </div>
+        </div>
+    );
+}
+
+export default function RemoteClient() {
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            <RemoteControlContent />
+        </Suspense>
+    );
+}
+
+function RemoteControlContent() {
+    const searchParams = useSearchParams();
+    const sessionId = searchParams.get("session") || "demo";
+
+    const {
+        session,
+        contentList,
+        isConnected,
+        isUploading,
+        selectContent,
+        clearDisplay,
+        uploadFile,
+    } = useRemoteSession(sessionId);
+
+    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (!file.name.endsWith(".zip") && !file.name.endsWith(".json")) {
+            alert("Please select a ZIP file or JSON file");
+            return;
+        }
+
+        await uploadFile(file);
+
+        // Clear file input
+        event.target.value = "";
+    };
+
+    return (
+        <>
+            {/* Desktop Layout - hidden on mobile */}
+            <div className="hidden md:block">
+                <DesktopLayout
+                    session={session}
+                    contentList={contentList}
+                    isConnected={isConnected}
+                    isUploading={isUploading}
+                    onSelect={selectContent}
+                    onClearDisplay={clearDisplay}
+                    onUpload={handleFileUpload}
+                />
+            </div>
+
+            {/* Mobile Layout - hidden on desktop */}
+            <div className="md:hidden">
+                <MobileLayout
+                    session={session}
+                    contentList={contentList}
+                    isConnected={isConnected}
+                    isUploading={isUploading}
+                    onSelect={selectContent}
+                    onClearDisplay={clearDisplay}
+                    onUpload={handleFileUpload}
+                />
+            </div>
+        </>
+    );
+}
+
+// Desktop Layout Component (existing layout preserved for desktop)
+function DesktopLayout({
+    session,
+    contentList,
+    isConnected,
+    isUploading,
+    onSelect,
+    onClearDisplay,
+    onUpload,
+}: {
+    session: SessionState;
+    contentList: ContentItem[];
+    isConnected: boolean;
+    isUploading: boolean;
+    onSelect: (item: ContentItem) => void;
+    onClearDisplay: () => void;
+    onUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}) {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+    const [viewMode, setViewMode] = useState<ViewMode>("grid");
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const filteredContent = contentList.filter((item) => {
+        const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = typeFilter === "all" || item.type === typeFilter;
+        return matchesSearch && matchesType;
+    });
 
     const currentItem = contentList.find((item) => item.id === session.currentlyDisplayed);
 
@@ -140,7 +416,7 @@ function RemoteControlContent() {
                 <Header session={session} isConnected={isConnected} />
 
                 {currentItem && (
-                    <CurrentDisplayCard itemName={currentItem.name} onClear={clearDisplay} />
+                    <CurrentDisplayCard itemName={currentItem.name} onClear={onClearDisplay} />
                 )}
 
                 <ControlsCard
@@ -151,7 +427,7 @@ function RemoteControlContent() {
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                     isUploading={isUploading}
-                    onUploadClick={handleUploadClick}
+                    onUploadClick={() => fileInputRef.current?.click()}
                 />
 
                 <ContentDisplay
@@ -160,19 +436,19 @@ function RemoteControlContent() {
                     viewMode={viewMode}
                     currentlyDisplayed={session.currentlyDisplayed}
                     isUploading={isUploading}
-                    onSelect={selectContent}
-                    onUploadClick={handleUploadClick}
-                    sessionId={sessionId}
+                    onSelect={onSelect}
+                    onUploadClick={() => fileInputRef.current?.click()}
+                    sessionId={session.id}
+                />
+
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".zip,.json,application/zip,application/json"
+                    onChange={onUpload}
+                    className="hidden"
                 />
             </div>
-
-            <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip,.json,application/zip,application/json"
-                onChange={handleFileUpload}
-                className="hidden"
-            />
         </div>
     );
 }
