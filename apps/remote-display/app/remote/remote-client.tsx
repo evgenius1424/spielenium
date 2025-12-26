@@ -27,6 +27,28 @@ type SessionState = {
 type TypeFilter = "all" | "image" | "video";
 type ViewMode = "grid" | "list";
 
+// Custom hook for mobile detection - mobile-first approach
+function useIsMobile() {
+    const [isMobile, setIsMobile] = useState(true); // Start with mobile as default
+
+    useEffect(() => {
+        const checkMobile = () => {
+            const width = window.innerWidth;
+            const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            // Consider it desktop only if width >= 1024px AND no touch OR width >= 1200px
+            const isDesktop = width >= 1024 && (!isTouchDevice || width >= 1200);
+            setIsMobile(!isDesktop);
+        };
+
+        // Run immediately to avoid flash
+        checkMobile();
+        window.addEventListener("resize", checkMobile);
+        return () => window.removeEventListener("resize", checkMobile);
+    }, []);
+
+    return isMobile;
+}
+
 // Custom hook for session management
 function useRemoteSession(sessionId: string) {
     const [session, setSession] = useState<SessionState>({
@@ -363,6 +385,7 @@ export default function RemoteClient() {
 function RemoteControlContent() {
     const searchParams = useSearchParams();
     const sessionId = searchParams.get("session") || "demo";
+    const isMobile = useIsMobile();
 
     const {
         session,
@@ -389,34 +412,30 @@ function RemoteControlContent() {
         event.target.value = "";
     };
 
-    return (
-        <>
-            {/* Desktop Layout - hidden on mobile */}
-            <div className="hidden md:block">
-                <DesktopLayout
-                    session={session}
-                    contentList={contentList}
-                    isConnected={isConnected}
-                    isUploading={isUploading}
-                    onSelect={selectContent}
-                    onClearDisplay={clearDisplay}
-                    onUpload={handleFileUpload}
-                />
-            </div>
+    if (isMobile) {
+        return (
+            <MobileLayout
+                session={session}
+                contentList={contentList}
+                isConnected={isConnected}
+                isUploading={isUploading}
+                onSelect={selectContent}
+                onClearDisplay={clearDisplay}
+                onUpload={handleFileUpload}
+            />
+        );
+    }
 
-            {/* Mobile Layout - hidden on desktop */}
-            <div className="md:hidden">
-                <MobileLayout
-                    session={session}
-                    contentList={contentList}
-                    isConnected={isConnected}
-                    isUploading={isUploading}
-                    onSelect={selectContent}
-                    onClearDisplay={clearDisplay}
-                    onUpload={handleFileUpload}
-                />
-            </div>
-        </>
+    return (
+        <DesktopLayout
+            session={session}
+            contentList={contentList}
+            isConnected={isConnected}
+            isUploading={isUploading}
+            onSelect={selectContent}
+            onClearDisplay={clearDisplay}
+            onUpload={handleFileUpload}
+        />
     );
 }
 
@@ -821,11 +840,22 @@ function UploadButton({ isUploading, onClick, variant = "default" }: UploadButto
 
 function LoadingFallback() {
     return (
-        <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-            <div className="text-center">
-                <Monitor className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                <h2 className="text-xl font-semibold mb-2">Loading Remote Control...</h2>
-                <p className="text-muted-foreground">Initializing session...</p>
+        <div className="min-h-screen bg-background p-4 pb-safe flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h1 className="text-lg font-bold flex items-center gap-2">
+                        <Monitor className="w-5 h-5" />
+                        Remote
+                    </h1>
+                    <p className="text-sm text-muted-foreground">Loading...</p>
+                </div>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <Loader2 className="w-8 h-8 text-muted-foreground animate-spin" />
+                </div>
+                <h2 className="text-lg font-semibold mb-2">Loading Remote Control</h2>
+                <p className="text-sm text-muted-foreground">Initializing session...</p>
             </div>
         </div>
     );
