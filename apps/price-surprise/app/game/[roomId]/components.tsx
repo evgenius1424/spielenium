@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Reorder } from "framer-motion";
-import { Badge } from "@repo/ui/components/badge";
-import { Button } from "@repo/ui/components/button";
+import {useEffect, useState} from "react";
+import {motion, AnimatePresence} from "framer-motion";
+import {Reorder} from "framer-motion";
+import {Badge} from "@repo/ui/components/badge";
+import {Button} from "@repo/ui/components/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/card";
-import type { RoomPublic, Item } from "@/lib/rooms";
-import type { RankedPlayer, PlayerDiff } from "./types";
-import { POP, STAGGER, DART_COLORS } from "./constants";
+import type {RoomPublic, Item} from "@/lib/rooms";
+import type {RankedPlayer, PlayerDiff} from "./types";
+import {POP, STAGGER, DART_COLORS} from "./constants";
 
 interface HeaderProps {
   room: RoomPublic;
@@ -21,7 +21,7 @@ interface HeaderProps {
   onCopyLink: () => void;
 }
 
-export function Header({ room, copied, onCopyLink }: HeaderProps) {
+export function Header({room, copied, onCopyLink}: HeaderProps) {
   return (
     <header className="flex items-center justify-between p-4">
       <div className="flex items-center gap-3">
@@ -29,9 +29,9 @@ export function Header({ room, copied, onCopyLink }: HeaderProps) {
           src="/logo.png"
           alt="Price Surprise"
           className="h-12 sm:h-14 w-auto"
-          initial={{ rotate: -5, opacity: 0 }}
-          animate={{ rotate: 0, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 200 }}
+          initial={{rotate: -5, opacity: 0}}
+          animate={{rotate: 0, opacity: 1}}
+          transition={{type: "spring", stiffness: 200}}
         />
         <h1
           className="text-3xl font-bold cursor-pointer select-all"
@@ -43,9 +43,9 @@ export function Header({ room, copied, onCopyLink }: HeaderProps) {
         <AnimatePresence>
           {copied && (
             <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{opacity: 0, x: -10}}
+              animate={{opacity: 1, x: 0}}
+              exit={{opacity: 0}}
               className="text-sm text-green-600 font-medium"
             >
               Link copied!
@@ -66,11 +66,11 @@ interface ScoreboardProps {
 }
 
 export function Scoreboard({
-  players,
-  winners,
-  losers,
-  isGameOver,
-}: ScoreboardProps) {
+                             players,
+                             winners,
+                             losers,
+                             isGameOver,
+                           }: ScoreboardProps) {
   return (
     <Card className="max-h-[calc(100vh-8rem)] flex flex-col">
       <CardHeader className="flex-shrink-0">
@@ -80,7 +80,8 @@ export function Scoreboard({
         <Reorder.Group
           axis="y"
           values={players}
-          onReorder={() => {}}
+          onReorder={() => {
+          }}
           className="space-y-2"
         >
           {players.map((p) => (
@@ -103,8 +104,8 @@ export function Scoreboard({
                   !losers.includes(p.id) && <span>✅</span>}
                 <motion.span
                   key={p.score}
-                  initial={{ scale: 1.2 }}
-                  animate={{ scale: 1 }}
+                  initial={{scale: 1.2}}
+                  animate={{scale: 1}}
                   className="text-lg font-bold min-w-[2ch] text-right"
                 >
                   {p.score}
@@ -123,7 +124,7 @@ interface LobbyPhaseProps {
   disabled: boolean;
 }
 
-export function LobbyPhase({ onStart, disabled }: LobbyPhaseProps) {
+export function LobbyPhase({onStart, disabled}: LobbyPhaseProps) {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
@@ -151,9 +152,9 @@ interface CategorySelectionPhaseProps {
 }
 
 export function CategorySelectionPhase({
-  pickerName,
-  categories,
-}: CategorySelectionPhaseProps) {
+                                         pickerName,
+                                         categories,
+                                       }: CategorySelectionPhaseProps) {
   return (
     <Card className="w-full max-w-3xl">
       <CardHeader>
@@ -202,10 +203,10 @@ interface GuessingPhaseProps {
 }
 
 export function GuessingPhase({
-  item,
-  categoryName,
-  onCloseRound,
-}: GuessingPhaseProps) {
+                                item,
+                                categoryName,
+                                onCloseRound,
+                              }: GuessingPhaseProps) {
   return (
     <Card className="w-full max-w-2xl">
       <CardHeader>
@@ -217,8 +218,8 @@ export function GuessingPhase({
       </CardHeader>
       <CardContent className="space-y-4">
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
+          initial={{scale: 0.95, opacity: 0}}
+          animate={{scale: 1, opacity: 1}}
           className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
         >
           <img
@@ -252,31 +253,34 @@ interface ResultsPhaseProps {
 }
 
 export function ResultsPhase({
-  item,
-  categoryType,
-  diffs,
-  onNext,
-}: ResultsPhaseProps) {
+                               item,
+                               categoryType,
+                               diffs,
+                               onNext,
+                             }: ResultsPhaseProps) {
   const [revealedDarts, setRevealedDarts] = useState<string[]>([]);
   const symbol =
     categoryType === "ruble" ? "₽" : categoryType === "comparison" ? "%" : "€";
 
   const sortedDiffs = [...diffs].sort(
-    (a, b) => Math.abs(a.diff) - Math.abs(b.diff),
+    (a, b) => Math.abs(a.diff) - Math.abs(b.diff)
   );
 
   const maxDiff = Math.max(
     ...diffs
       .filter((d) => Number.isFinite(d.diff))
       .map((d) => Math.abs(d.diff)),
-    1,
+    1
   );
+
+  const perfectGuessers = diffs.filter((d) => d.diff === 0);
+  const hasPerfectGuess = perfectGuessers.length > 0;
 
   const winners =
     sortedDiffs.length > 0 && Number.isFinite(sortedDiffs[0]?.diff)
       ? sortedDiffs
-          .filter((d) => d.diff === sortedDiffs[0]!.diff)
-          .map((d) => d.playerId)
+        .filter((d) => d.diff === sortedDiffs[0]!.diff)
+        .map((d) => d.playerId)
       : [];
 
   const losers = diffs
@@ -288,15 +292,22 @@ export function ResultsPhase({
     sortedDiffs.forEach((d, i) => {
       setTimeout(
         () => setRevealedDarts((prev) => [...prev, d.playerId]),
-        i * 300 + 500,
+        i * 300 + 500
       );
     });
   }, [diffs]);
 
   return (
-    <Card className="w-full max-w-4xl">
+    <Card className="w-full max-w-4xl relative overflow-hidden">
+      {hasPerfectGuess && (
+        <PerfectGuessOverlay
+          playerName={perfectGuessers.map((p) => p.name).join(" & ")}
+        />
+      )}
       <CardHeader>
-        <CardTitle className="text-center text-2xl">🎯 Round Results</CardTitle>
+        <CardTitle className="text-center text-2xl">
+          {hasPerfectGuess ? "🎯✨ Round Results ✨🎯" : "🎯 Round Results"}
+        </CardTitle>
         <p className="text-center text-lg text-muted-foreground">
           <span className="font-bold text-foreground">{item.name}</span> costs{" "}
           <span className="font-bold text-primary">
@@ -326,35 +337,51 @@ export function ResultsPhase({
           {sortedDiffs.map((d, i) => {
             const isWinner = winners.includes(d.playerId);
             const isLoser = losers.includes(d.playerId);
+            const isPerfect = d.diff === 0;
             const color =
               DART_COLORS[
-                diffs.findIndex((x) => x.playerId === d.playerId) %
-                  DART_COLORS.length
-              ];
+              diffs.findIndex((x) => x.playerId === d.playerId) %
+              DART_COLORS.length
+                ];
             const hasGuess = Number.isFinite(d.diff);
 
             return (
               <motion.div
                 key={d.playerId}
                 variants={POP}
+                animate={
+                  isPerfect
+                    ? {
+                      boxShadow: [
+                        "0 0 0 0 rgba(234, 179, 8, 0)",
+                        "0 0 20px 4px rgba(234, 179, 8, 0.4)",
+                        "0 0 0 0 rgba(234, 179, 8, 0)",
+                      ],
+                    }
+                    : {}
+                }
+                transition={{duration: 2, repeat: isPerfect ? Infinity : 0, ease: "easeInOut"}}
                 className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
-                  isWinner
-                    ? "bg-yellow-500/10 border-yellow-500/50"
-                    : isLoser
-                      ? "bg-red-500/10 border-red-500/50"
-                      : "bg-muted/30 border-border"
+                  isPerfect
+                    ? "bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-yellow-500/20 border-yellow-500"
+                    : isWinner
+                      ? "bg-yellow-500/10 border-yellow-500/50"
+                      : isLoser
+                        ? "bg-red-500/10 border-red-500/50"
+                        : "bg-muted/30 border-border"
                 }`}
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
-                  style={{ backgroundColor: color }}
+                  style={{backgroundColor: color}}
                 >
                   {i + 1}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold truncate flex items-center gap-2">
                     {d.name}
-                    {isWinner && <span>🏆</span>}
+                    {isPerfect && <span>🎯💯</span>}
+                    {isWinner && !isPerfect && <span>🏆</span>}
                     {isLoser && <span className="text-sm">💀🔥</span>}
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -363,13 +390,16 @@ export function ResultsPhase({
                 </div>
                 {hasGuess && (
                   <div
-                    className={`text-right ${isWinner ? "text-green-500" : isLoser ? "text-red-500" : "text-foreground"}`}
+                    className={`text-right ${isPerfect ? "text-yellow-500" : isWinner ? "text-green-500" : isLoser ? "text-red-500" : "text-foreground"}`}
                   >
                     <p className="text-xl font-bold">
-                      {d.guess! > item.price ? "+" : "-"}
-                      {Math.round(d.diff)}
+                      {isPerfect
+                        ? "PERFECT!"
+                        : `${d.guess! > item.price ? "+" : "-"}${Math.round(Math.abs(d.diff))}`}
                     </p>
-                    <p className="text-xs text-muted-foreground">difference</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isPerfect ? "🎉🎉🎉" : "difference"}
+                    </p>
                   </div>
                 )}
               </motion.div>
@@ -377,7 +407,7 @@ export function ResultsPhase({
           })}
         </motion.div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center relative z-10">
           <Button onClick={onNext} className="h-12 px-8 text-lg">
             Next
           </Button>
@@ -441,11 +471,11 @@ function DartsBoard({
 
   return (
     <motion.div
-      initial={{ scale: 0.9, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ duration: 0.4, type: "spring" }}
+      initial={{scale: 0.9, opacity: 0}}
+      animate={{scale: 1, opacity: 1}}
+      transition={{duration: 0.4, type: "spring"}}
       className="relative overflow-visible"
-      style={{ width: size, height: size }}
+      style={{width: size, height: size}}
     >
       <svg
         viewBox={`0 0 ${size} ${size}`}
@@ -453,8 +483,8 @@ function DartsBoard({
       >
         <defs>
           <radialGradient id="boardShine" cx="35%" cy="35%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
-            <stop offset="100%" stopColor="rgba(0,0,0,0.1)" />
+            <stop offset="0%" stopColor="rgba(255,255,255,0.15)"/>
+            <stop offset="100%" stopColor="rgba(0,0,0,0.1)"/>
           </radialGradient>
         </defs>
 
@@ -517,16 +547,16 @@ function DartsBoard({
           return (
             <motion.div
               key={d.playerId}
-              initial={{ left: center + 100, top: -50, scale: 0.5, opacity: 0 }}
+              initial={{left: center + 100, top: -50, scale: 0.5, opacity: 0}}
               animate={{
                 left: pos.x - 12,
                 top: pos.y - 12,
                 scale: 1,
                 opacity: 1,
               }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              transition={{type: "spring", stiffness: 300, damping: 20}}
               className="absolute"
-              style={{ zIndex: isWinner ? 20 : 10 }}
+              style={{zIndex: isWinner ? 20 : 10}}
             >
               <DartPin
                 color={color!}
@@ -541,6 +571,7 @@ function DartsBoard({
     </motion.div>
   );
 }
+
 interface DartPinProps {
   color: string;
   isWinner: boolean;
@@ -548,12 +579,12 @@ interface DartPinProps {
   name: string;
 }
 
-function DartPin({ color, isWinner, isLoser, name }: DartPinProps) {
+function DartPin({color, isWinner, isLoser, name}: DartPinProps) {
   return (
     <div className="relative">
       <motion.div
-        animate={isWinner ? { scale: [1, 1.15, 1] } : {}}
-        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+        animate={isWinner ? {scale: [1, 1.15, 1]} : {}}
+        transition={{repeat: Infinity, duration: 2, ease: "easeInOut"}}
         className="relative"
       >
         <svg
@@ -570,13 +601,13 @@ function DartPin({ color, isWinner, isLoser, name }: DartPinProps) {
             stroke="white"
             strokeWidth="2"
           />
-          <circle cx="12" cy="12" r="4" fill="white" opacity="0.4" />
+          <circle cx="12" cy="12" r="4" fill="white" opacity="0.4"/>
         </svg>
         {isWinner && (
           <motion.div
             className="absolute -top-1 -right-1 text-sm"
-            animate={{ rotate: [0, 15, -15, 0] }}
-            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+            animate={{rotate: [0, 15, -15, 0]}}
+            transition={{repeat: Infinity, duration: 1.5, ease: "easeInOut"}}
           >
             ⭐
           </motion.div>
@@ -589,7 +620,7 @@ function DartPin({ color, isWinner, isLoser, name }: DartPinProps) {
             <motion.div
               key={i}
               className="absolute text-xs"
-              style={{ left: (i - 1) * 6 }}
+              style={{left: (i - 1) * 6}}
               animate={{
                 y: [0, -10, -16],
                 opacity: [1, 0.7, 0],
@@ -609,9 +640,9 @@ function DartPin({ color, isWinner, isLoser, name }: DartPinProps) {
       )}
 
       <motion.div
-        initial={{ opacity: 0, y: 5 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.4 }}
+        initial={{opacity: 0, y: 5}}
+        animate={{opacity: 1, y: 0}}
+        transition={{delay: 0.3, duration: 0.4}}
         className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
           isLoser
             ? "bg-red-500 text-white"
@@ -625,6 +656,63 @@ function DartPin({ color, isWinner, isLoser, name }: DartPinProps) {
     </div>
   );
 }
+
+interface PerfectGuessOverlayProps {
+  playerName: string;
+}
+
+function PerfectGuessOverlay({playerName}: PerfectGuessOverlayProps) {
+  const emojis = ["🎉", "🎊", "🏆", "⭐", "💰", "🔥", "💎", "👑"];
+
+  return (
+    <>
+      {[...Array(30)].map((_, i) => (
+        <motion.div
+          key={i}
+          className="absolute text-2xl pointer-events-none"
+          style={{left: `${Math.random() * 100}%`}}
+          initial={{y: -30, opacity: 1, rotate: 0}}
+          animate={{
+            y: "100vh",
+            rotate: Math.random() * 360 - 180,
+          }}
+          transition={{
+            duration: Math.random() * 3 + 3,
+            delay: Math.random() * 2,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        >
+          {emojis[Math.floor(Math.random() * emojis.length)]}
+        </motion.div>
+      ))}
+
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={`burst-${i}`}
+          className="absolute left-1/2 top-1/3 w-3 h-3 rounded-full pointer-events-none"
+          style={{
+            background: ["#ffd700", "#ff6b6b", "#4ecdc4", "#a55eea", "#26de81", "#fd79a8"][i % 6],
+          }}
+          initial={{x: "-50%", y: "-50%", scale: 0, opacity: 1}}
+          animate={{
+            x: `calc(-50% + ${Math.cos((i * 45 * Math.PI) / 180) * 120}px)`,
+            y: `calc(-50% + ${Math.sin((i * 45 * Math.PI) / 180) * 120}px)`,
+            scale: [0, 1, 0],
+            opacity: [1, 1, 0],
+          }}
+          transition={{
+            duration: 1.5,
+            delay: 0.5,
+            repeat: Infinity,
+            repeatDelay: 1,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
 function getPlayerStyle(
   playerId: string,
   voted: boolean,
@@ -678,6 +766,7 @@ function getDartPosition(
     y: center + Math.sin(angle) * distance,
   };
 }
+
 function getMissPosition(index: number, center: number, boardRadius: number) {
   const angle = (((index * 90 + 45) % 360) * Math.PI) / 180;
   const distance = boardRadius + 25 + (index % 3) * 15;
