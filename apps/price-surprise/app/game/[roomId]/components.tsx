@@ -313,6 +313,7 @@ export function ResultsPhase({
             losers={losers}
             maxDiff={maxDiff}
             revealedDarts={revealedDarts}
+            actualPrice={item.price}
           />
         </div>
 
@@ -405,15 +406,26 @@ interface DartsBoardProps {
   losers: string[];
   maxDiff: number;
   revealedDarts: string[];
+  actualPrice: number;
+}
+
+interface DartsBoardProps {
+  diffs: PlayerDiff[];
+  winners: string[];
+  losers: string[];
+  maxDiff: number;
+  revealedDarts: string[];
+  actualPrice: number;
 }
 
 function DartsBoard({
-  diffs,
-  winners,
-  losers,
-  maxDiff,
-  revealedDarts,
-}: DartsBoardProps) {
+                      diffs,
+                      winners,
+                      losers,
+                      maxDiff,
+                      revealedDarts,
+                      actualPrice,
+                    }: DartsBoardProps) {
   const size = 320;
   const center = size / 2;
   const boardRadius = 130;
@@ -500,7 +512,7 @@ function DartsBoard({
           const color = DART_COLORS[i % DART_COLORS.length];
           const pos = isLoser
             ? getMissPosition(i, center, boardRadius)
-            : getDartPosition(d.diff, maxDiff, i, center, boardRadius);
+            : getDartPosition(d.diff, maxDiff, i, center, boardRadius, actualPrice);
 
           return (
             <motion.div
@@ -529,7 +541,6 @@ function DartsBoard({
     </motion.div>
   );
 }
-
 interface DartPinProps {
   color: string;
   isWinner: boolean;
@@ -639,18 +650,34 @@ function getDartPosition(
   maxDiff: number,
   index: number,
   center: number,
-  boardRadius: number
+  boardRadius: number,
+  actualPrice: number
 ) {
-  const normalized = Math.abs(diff) / maxDiff;
-  const maxDistance = boardRadius + 60;
-  const distance = 12 + normalized * (maxDistance - 12);
+  const absDiff = Math.abs(diff);
+  const percentOff = absDiff / actualPrice;
+
+  let distance: number;
+
+  if (percentOff <= 0.05) {
+    distance = 12 + (percentOff / 0.05) * 18;
+  } else if (percentOff <= 0.15) {
+    distance = 30 + ((percentOff - 0.05) / 0.1) * 40;
+  } else if (percentOff <= 0.30) {
+    distance = 70 + ((percentOff - 0.15) / 0.15) * 40;
+  } else if (percentOff <= 0.50) {
+    distance = 110 + ((percentOff - 0.30) / 0.2) * 20;
+  } else if (percentOff <= 1.0) {
+    distance = boardRadius + 20 + ((percentOff - 0.5) / 0.5) * 30;
+  } else {
+    distance = boardRadius + 50 + Math.min((percentOff - 1.0) * 20, 40);
+  }
+
   const angle = (((index * 137.5 + 45) % 360) * Math.PI) / 180;
   return {
     x: center + Math.cos(angle) * distance,
     y: center + Math.sin(angle) * distance,
   };
 }
-
 function getMissPosition(index: number, center: number, boardRadius: number) {
   const angle = (((index * 90 + 45) % 360) * Math.PI) / 180;
   const distance = boardRadius + 25 + (index % 3) * 15;
