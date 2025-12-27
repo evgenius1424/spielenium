@@ -252,12 +252,20 @@ interface ResultsPhaseProps {
   onNext: () => void;
 }
 
+interface ResultsPhaseProps {
+  item: Item;
+  categoryType?: string;
+  diffs: PlayerDiff[];
+  onNext: () => void;
+}
+
 export function ResultsPhase({
                                item,
                                categoryType,
                                diffs,
                                onNext,
                              }: ResultsPhaseProps) {
+  const [showDartboard, setShowDartboard] = useState(!item.imageAnswer);
   const [revealedDarts, setRevealedDarts] = useState<string[]>([]);
 
   const symbol =
@@ -302,6 +310,8 @@ export function ResultsPhase({
   );
 
   useEffect(() => {
+    if (!showDartboard) return;
+
     setRevealedDarts([]);
     const timeouts: NodeJS.Timeout[] = [];
     sortedDiffs.forEach((d, i) => {
@@ -312,7 +322,68 @@ export function ResultsPhase({
       timeouts.push(timeout);
     });
     return () => timeouts.forEach(clearTimeout);
-  }, [sortedDiffs]);
+  }, [sortedDiffs, showDartboard]);
+
+  if (!showDartboard) {
+    return (
+      <Card className="w-full max-w-4xl">
+        <CardHeader>
+          <CardTitle className="text-center text-2xl">
+            💰 Price Reveal 💰
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <motion.div
+            initial={{ rotateY: 90, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
+          >
+            <img
+              src={item.imageAnswer}
+              alt={item.name}
+              className="h-full w-full object-contain"
+            />
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-center"
+          >
+            <p className="text-2xl">
+              The price of{" "}
+              <span className="text-primary font-bold">{item.name}</span> is
+            </p>
+            <motion.p
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.6, type: "spring", stiffness: 200 }}
+              className="text-4xl font-bold text-primary mt-2"
+            >
+              {symbol}
+              {item.price}
+            </motion.p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="flex justify-center"
+          >
+            <Button
+              onClick={() => setShowDartboard(true)}
+              className="h-12 px-8 text-lg"
+            >
+              Show Results 🎯
+            </Button>
+          </motion.div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-4xl relative overflow-hidden">
@@ -436,6 +507,7 @@ export function ResultsPhase({
     </Card>
   );
 }
+
 export function GameOverPhase() {
   return (
     <Card className="w-full max-w-md">
