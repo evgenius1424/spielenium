@@ -639,10 +639,11 @@ function getDartPosition(
   maxDiff: number,
   index: number,
   center: number,
-  boardRadius: number,
+  boardRadius: number
 ) {
-  const normalized = Math.min(Math.abs(diff) / maxDiff, 1);
-  const distance = 12 + normalized * (boardRadius - 20);
+  const normalized = Math.abs(diff) / maxDiff;
+  const maxDistance = boardRadius + 60;
+  const distance = 12 + normalized * (maxDistance - 12);
   const angle = (((index * 137.5 + 45) % 360) * Math.PI) / 180;
   return {
     x: center + Math.cos(angle) * distance,
