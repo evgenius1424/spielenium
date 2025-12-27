@@ -259,43 +259,60 @@ export function ResultsPhase({
                                onNext,
                              }: ResultsPhaseProps) {
   const [revealedDarts, setRevealedDarts] = useState<string[]>([]);
+
   const symbol =
     categoryType === "ruble" ? "₽" : categoryType === "comparison" ? "%" : "€";
 
-  const sortedDiffs = [...diffs].sort(
-    (a, b) => Math.abs(a.diff) - Math.abs(b.diff)
+  const sortedDiffs = useMemo(
+    () => [...diffs].sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff)),
+    [diffs]
   );
 
-  const maxDiff = Math.max(
-    ...diffs
-      .filter((d) => Number.isFinite(d.diff))
-      .map((d) => Math.abs(d.diff)),
-    1
+  const maxDiff = useMemo(
+    () =>
+      Math.max(
+        ...diffs
+          .filter((d) => Number.isFinite(d.diff))
+          .map((d) => Math.abs(d.diff)),
+        1
+      ),
+    [diffs]
   );
 
-  const perfectGuessers = diffs.filter((d) => d.diff === 0);
+  const perfectGuessers = useMemo(
+    () => diffs.filter((d) => d.diff === 0),
+    [diffs]
+  );
+
   const hasPerfectGuess = perfectGuessers.length > 0;
 
-  const winners =
-    sortedDiffs.length > 0 && Number.isFinite(sortedDiffs[0]?.diff)
-      ? sortedDiffs
-        .filter((d) => d.diff === sortedDiffs[0]!.diff)
-        .map((d) => d.playerId)
-      : [];
+  const winners = useMemo(
+    () =>
+      sortedDiffs.length > 0 && Number.isFinite(sortedDiffs[0]?.diff)
+        ? sortedDiffs
+          .filter((d) => d.diff === sortedDiffs[0]!.diff)
+          .map((d) => d.playerId)
+        : [],
+    [sortedDiffs]
+  );
 
-  const losers = diffs
-    .filter((d) => !Number.isFinite(d.diff))
-    .map((d) => d.playerId);
+  const losers = useMemo(
+    () => diffs.filter((d) => !Number.isFinite(d.diff)).map((d) => d.playerId),
+    [diffs]
+  );
 
   useEffect(() => {
     setRevealedDarts([]);
+    const timeouts: NodeJS.Timeout[] = [];
     sortedDiffs.forEach((d, i) => {
-      setTimeout(
+      const timeout = setTimeout(
         () => setRevealedDarts((prev) => [...prev, d.playerId]),
         i * 300 + 500
       );
+      timeouts.push(timeout);
     });
-  }, [diffs]);
+    return () => timeouts.forEach(clearTimeout);
+  }, [sortedDiffs]);
 
   return (
     <Card className="w-full max-w-4xl relative overflow-hidden">
@@ -328,12 +345,7 @@ export function ResultsPhase({
           />
         </div>
 
-        <motion.div
-          variants={STAGGER}
-          initial="initial"
-          animate="animate"
-          className="space-y-2"
-        >
+        <div className="space-y-2">
           {sortedDiffs.map((d, i) => {
             const isWinner = winners.includes(d.playerId);
             const isLoser = losers.includes(d.playerId);
@@ -348,20 +360,28 @@ export function ResultsPhase({
             return (
               <motion.div
                 key={d.playerId}
-                variants={POP}
-                animate={
-                  isPerfect
-                    ? {
-                      boxShadow: [
-                        "0 0 0 0 rgba(234, 179, 8, 0)",
-                        "0 0 20px 4px rgba(234, 179, 8, 0.4)",
-                        "0 0 0 0 rgba(234, 179, 8, 0)",
-                      ],
-                    }
-                    : {}
-                }
-                transition={{duration: 2, repeat: isPerfect ? Infinity : 0, ease: "easeInOut"}}
-                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                initial={{ scale: 0.8, opacity: 0, y: 20 }}
+                animate={{
+                  scale: 1,
+                  opacity: 1,
+                  y: 0,
+                  boxShadow: isPerfect
+                    ? [
+                      "0 0 0 0 rgba(234, 179, 8, 0)",
+                      "0 0 20px 4px rgba(234, 179, 8, 0.4)",
+                      "0 0 0 0 rgba(234, 179, 8, 0)",
+                    ]
+                    : "none",
+                }}
+                transition={{
+                  scale: { duration: 0.3, delay: i * 0.15 },
+                  opacity: { duration: 0.3, delay: i * 0.15 },
+                  y: { duration: 0.3, delay: i * 0.15 },
+                  boxShadow: isPerfect
+                    ? { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                    : { duration: 0 },
+                }}
+                className={`flex items-center gap-3 p-3 rounded-lg border ${
                   isPerfect
                     ? "bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-yellow-500/20 border-yellow-500"
                     : isWinner
@@ -373,7 +393,7 @@ export function ResultsPhase({
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
-                  style={{backgroundColor: color}}
+                  style={{ backgroundColor: color }}
                 >
                   {i + 1}
                 </div>
@@ -405,7 +425,7 @@ export function ResultsPhase({
               </motion.div>
             );
           })}
-        </motion.div>
+        </div>
 
         <div className="flex justify-center relative z-10">
           <Button onClick={onNext} className="h-12 px-8 text-lg">
@@ -416,7 +436,6 @@ export function ResultsPhase({
     </Card>
   );
 }
-
 export function GameOverPhase() {
   return (
     <Card className="w-full max-w-md">
