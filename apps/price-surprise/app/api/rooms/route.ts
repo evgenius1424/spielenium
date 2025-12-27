@@ -6,12 +6,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { categories } = body;
     if (!Array.isArray(categories)) {
-      return NextResponse.json({ error: "Invalid categories" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid categories" },
+        { status: 400 },
+      );
     }
 
     const room = createRoom(categories);
     return NextResponse.json({ id: room.id });
   } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+    return NextResponse.json(
+      { error: (err as Error).message },
+      { status: 500 },
+    );
   }
 }

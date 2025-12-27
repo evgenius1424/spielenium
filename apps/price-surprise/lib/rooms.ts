@@ -48,8 +48,8 @@ export type RoomPublic = {
 };
 
 export type Category = {
-  name: string,
-  type: string,
+  name: string;
+  type: string;
   logo: string;
   items: Item[];
 };
@@ -58,24 +58,24 @@ export type ServerEvent =
   | { type: "state"; payload: RoomPublic }
   | { type: "players"; payload: PlayerPublic[] }
   | {
-    type: "guess";
-    payload: { playerId: string; name: string; guess: number };
-  }
+      type: "guess";
+      payload: { playerId: string; name: string; guess: number };
+    }
   | { type: "question"; payload: { category: string; item: Item } }
   | {
-    type: "result";
-    payload: {
-      item: Item;
-      winners: string[];
-      losers: string[];
-      diffs: Array<{
-        playerId: string;
-        name: string;
-        diff: number;
-        guess?: number;
-      }>;
+      type: "result";
+      payload: {
+        item: Item;
+        winners: string[];
+        losers: string[];
+        diffs: Array<{
+          playerId: string;
+          name: string;
+          diff: number;
+          guess?: number;
+        }>;
+      };
     };
-  };
 
 const rooms = new Map<string, Room>();
 
@@ -148,7 +148,12 @@ export function joinRoom(room: Room, name: string): PlayerPublic {
   };
   room.players.set(id, player);
   broadcastRoomState(room);
-  return { id: player.id, name: player.name, score: player.score, voted: player.voted };
+  return {
+    id: player.id,
+    name: player.name,
+    score: player.score,
+    voted: player.voted,
+  };
 }
 
 export function startGame(roomId: string) {
@@ -252,9 +257,7 @@ export function closeRound(room: Room) {
   const losers =
     minDiff === maxDiff
       ? []
-      : diffs
-        .filter((p) => p.diff === maxDiff)
-        .map((p) => p.playerId);
+      : diffs.filter((p) => p.diff === maxDiff).map((p) => p.playerId);
 
   losers.forEach((id) => {
     const player = room.players.get(id);
@@ -265,7 +268,9 @@ export function closeRound(room: Room) {
   room.players.forEach((p) => (p.voted = false));
 
   // remove item from category
-  const category = room.categories.find((category) => category.name == room.selectedCategory?.name)!;
+  const category = room.categories.find(
+    (category) => category.name == room.selectedCategory?.name,
+  )!;
   category.items = category.items.filter((i) => i.name !== item.name);
 
   // remove category if empty

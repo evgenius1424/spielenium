@@ -18,10 +18,7 @@ function toPublicContentItem(item: any): ContentItemPublic {
 }
 
 // GET: return content list as JSON
-export async function GET(
-  _request: NextRequest,
-  { params }: RouteParams
-) {
+export async function GET(_request: NextRequest, { params }: RouteParams) {
   const { sessionId } = await params;
   const session = getSession(sessionId);
 
@@ -29,15 +26,14 @@ export async function GET(
     return NextResponse.json([]);
   }
 
-  const publicItems = Array.from(session.contentLibrary.values()).map(toPublicContentItem);
+  const publicItems = Array.from(session.contentLibrary.values()).map(
+    toPublicContentItem,
+  );
   return NextResponse.json(publicItems);
 }
 
 // POST: upload file (ZIP or JSON), returns new content list
-export async function POST(
-  request: NextRequest,
-  { params }: RouteParams
-) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   const { sessionId } = await params;
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
@@ -53,7 +49,9 @@ export async function POST(
     await addContent(session, file);
 
     // Return updated content list
-    const publicItems = Array.from(session.contentLibrary.values()).map(toPublicContentItem);
+    const publicItems = Array.from(session.contentLibrary.values()).map(
+      toPublicContentItem,
+    );
     return NextResponse.json({
       success: true,
       contentCount: publicItems.length,
@@ -66,10 +64,7 @@ export async function POST(
 }
 
 // DELETE: clear all content
-export async function DELETE(
-  _request: NextRequest,
-  { params }: RouteParams
-) {
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { sessionId } = await params;
   const session = getSession(sessionId);
 

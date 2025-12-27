@@ -35,6 +35,9 @@ export async function GET(_request: NextRequest, { params }: RouteParams) {
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to decode content" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to decode content" },
+      { status: 500 },
+    );
   }
 }

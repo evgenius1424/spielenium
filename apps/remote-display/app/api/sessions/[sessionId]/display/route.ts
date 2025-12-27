@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getSession,
-  selectContent,
-  clearDisplay,
-} from "@/lib/sessions";
+import { getSession, selectContent, clearDisplay } from "@/lib/sessions";
 
 export const dynamic = "force-dynamic";
 
 type RouteParams = { params: Promise<{ sessionId: string }> };
 
 // POST: select content to display
-export async function POST(
-  request: NextRequest,
-  { params }: RouteParams
-) {
+export async function POST(request: NextRequest, { params }: RouteParams) {
   const { sessionId } = await params;
   const session = getSession(sessionId);
 
@@ -24,7 +17,10 @@ export async function POST(
   const { contentId } = await request.json();
 
   if (!contentId) {
-    return NextResponse.json({ error: "Content ID is required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Content ID is required" },
+      { status: 400 },
+    );
   }
 
   const success = selectContent(session, contentId);
@@ -37,10 +33,7 @@ export async function POST(
 }
 
 // DELETE: clear display
-export async function DELETE(
-  _request: NextRequest,
-  { params }: RouteParams
-) {
+export async function DELETE(_request: NextRequest, { params }: RouteParams) {
   const { sessionId } = await params;
   const session = getSession(sessionId);
 

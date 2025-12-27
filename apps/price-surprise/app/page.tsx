@@ -35,7 +35,8 @@ export default function LobbyPage() {
       });
 
       const roomData = await roomRes.json();
-      if (!roomRes.ok) throw new Error(roomData?.error || "Failed to create room");
+      if (!roomRes.ok)
+        throw new Error(roomData?.error || "Failed to create room");
 
       router.push(`/game/${roomData.id}`);
     } catch (err) {

@@ -1,9 +1,5 @@
 import { NextRequest } from "next/server";
-import {
-  getOrCreateSession,
-  type SSEEvent,
-  subscribe,
-} from "@/lib/sessions";
+import { getOrCreateSession, type SSEEvent, subscribe } from "@/lib/sessions";
 
 function toSSE(e: SSEEvent) {
   return `event: ${e.type}\ndata: ${JSON.stringify(e.payload)}\n\n`;

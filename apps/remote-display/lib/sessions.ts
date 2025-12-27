@@ -24,7 +24,10 @@ export type Session = {
 export type SSEEvent =
   | { type: "session-state"; payload: SessionStatePayload }
   | { type: "content-list"; payload: ContentItemPublic[] }
-  | { type: "content-selected"; payload: { type: string; url: string; name: string } }
+  | {
+      type: "content-selected";
+      payload: { type: string; url: string; name: string };
+    }
   | { type: "content-cleared"; payload: {} };
 
 export type SessionStatePayload = {
@@ -86,7 +89,10 @@ export function getSession(sessionId: string): Session | undefined {
 }
 
 // Subscription management
-export function subscribe(session: Session, callback: (event: SSEEvent) => void): () => void {
+export function subscribe(
+  session: Session,
+  callback: (event: SSEEvent) => void,
+): () => void {
   session.subscribers.add(callback);
   session.lastActivity = new Date().toISOString();
   cancelCleanup(session.id);
@@ -95,7 +101,9 @@ export function subscribe(session: Session, callback: (event: SSEEvent) => void)
   callback({ type: "session-state", payload: getSessionState(session) });
   callback({
     type: "content-list",
-    payload: Array.from(session.contentLibrary.values()).map(toPublicContentItem)
+    payload: Array.from(session.contentLibrary.values()).map(
+      toPublicContentItem,
+    ),
   });
 
   // Return unsubscribe function
@@ -133,7 +141,10 @@ export function clearContent(session: Session): void {
 
   broadcast(session, { type: "content-list", payload: [] });
   broadcast(session, { type: "content-cleared", payload: {} });
-  broadcast(session, { type: "session-state", payload: getSessionState(session) });
+  broadcast(session, {
+    type: "session-state",
+    payload: getSessionState(session),
+  });
 }
 
 export async function addContent(session: Session, file: File): Promise<void> {
@@ -144,14 +155,20 @@ export async function addContent(session: Session, file: File): Promise<void> {
 
   // Validate file size
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error(`File size (${formatFileSize(file.size)}) exceeds maximum allowed size (${formatFileSize(MAX_FILE_SIZE)})`);
+    throw new Error(
+      `File size (${formatFileSize(file.size)}) exceeds maximum allowed size (${formatFileSize(MAX_FILE_SIZE)})`,
+    );
   }
 
   // Check session size limit
-  const currentSize = Array.from(session.contentLibrary.values())
-    .reduce((total, item) => total + item.size, 0);
+  const currentSize = Array.from(session.contentLibrary.values()).reduce(
+    (total, item) => total + item.size,
+    0,
+  );
   if (currentSize + file.size > MAX_SESSION_SIZE) {
-    throw new Error(`Session size would exceed maximum allowed size (${formatFileSize(MAX_SESSION_SIZE)})`);
+    throw new Error(
+      `Session size would exceed maximum allowed size (${formatFileSize(MAX_SESSION_SIZE)})`,
+    );
   }
 
   // Process file based on type
@@ -160,15 +177,22 @@ export async function addContent(session: Session, file: File): Promise<void> {
   } else if (file.name.endsWith(".json") || file.type === "application/json") {
     await processJsonFile(session, file);
   } else {
-    throw new Error("Unsupported file type. Only ZIP and JSON files are allowed.");
+    throw new Error(
+      "Unsupported file type. Only ZIP and JSON files are allowed.",
+    );
   }
 
   // Broadcast updated content and session state
   broadcast(session, {
     type: "content-list",
-    payload: Array.from(session.contentLibrary.values()).map(toPublicContentItem)
+    payload: Array.from(session.contentLibrary.values()).map(
+      toPublicContentItem,
+    ),
   });
-  broadcast(session, { type: "session-state", payload: getSessionState(session) });
+  broadcast(session, {
+    type: "session-state",
+    payload: getSessionState(session),
+  });
 }
 
 export function selectContent(session: Session, contentId: string): boolean {
@@ -188,7 +212,10 @@ export function selectContent(session: Session, contentId: string): boolean {
       name: content.name,
     },
   });
-  broadcast(session, { type: "session-state", payload: getSessionState(session) });
+  broadcast(session, {
+    type: "session-state",
+    payload: getSessionState(session),
+  });
 
   return true;
 }
@@ -198,7 +225,10 @@ export function clearDisplay(session: Session): void {
   session.currentlyDisplayed = null;
 
   broadcast(session, { type: "content-cleared", payload: {} });
-  broadcast(session, { type: "session-state", payload: getSessionState(session) });
+  broadcast(session, {
+    type: "session-state",
+    payload: getSessionState(session),
+  });
 }
 
 // File processing helpers
@@ -245,8 +275,8 @@ async function processJsonFile(session: Session, file: File): Promise<void> {
     if (!item.name || !item.url) continue;
 
     const url = item.url.toLowerCase();
-    const isImage = IMAGE_FORMATS.some(ext => url.includes(ext));
-    const isVideo = VIDEO_FORMATS.some(ext => url.includes(ext));
+    const isImage = IMAGE_FORMATS.some((ext) => url.includes(ext));
+    const isVideo = VIDEO_FORMATS.some((ext) => url.includes(ext));
 
     if (!isImage && !isVideo) continue;
 
@@ -268,10 +298,13 @@ async function processJsonFile(session: Session, file: File): Promise<void> {
 function scheduleCleanup(sessionId: string): void {
   cancelCleanup(sessionId); // Cancel any existing timer
 
-  const timer = setTimeout(() => {
-    sessions.delete(sessionId);
-    cleanupTimers.delete(sessionId);
-  }, 5 * 60 * 1000); // 5 minutes
+  const timer = setTimeout(
+    () => {
+      sessions.delete(sessionId);
+      cleanupTimers.delete(sessionId);
+    },
+    5 * 60 * 1000,
+  ); // 5 minutes
 
   cleanupTimers.set(sessionId, timer);
 }

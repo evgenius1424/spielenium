@@ -12,13 +12,16 @@ export async function POST(
     return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
 
-  const body = await req.json().catch(() => ({} as any));
+  const body = await req.json().catch(() => ({}) as any);
   const action = body?.action as "pick" | "close" | "next" | "game-over";
 
   // ───────────── PICK CATEGORY ─────────────
   if (action === "pick") {
     if (room.state !== "category-selection") {
-      return NextResponse.json({ error: "Not the category-selection phase" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Not the category-selection phase" },
+        { status: 400 },
+      );
     }
 
     const pickerIndex = room.currentCategoryPickerIndex ?? 0;
@@ -48,7 +51,10 @@ export async function POST(
   // ───────────── CLOSE ROUND ─────────────
   if (action === "close") {
     if (room.state !== "guessing") {
-      return NextResponse.json({ error: "Not the guessing phase" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Not the guessing phase" },
+        { status: 400 },
+      );
     }
     closeRound(room);
     return NextResponse.json({ ok: true });
