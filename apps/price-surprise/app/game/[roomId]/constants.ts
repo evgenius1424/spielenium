@@ -14,3 +14,14 @@ export const POP = {
   animate: { scale: 1, opacity: 1 },
   exit: { scale: 0.95, opacity: 0 },
 } as const;
+
+export const DART_COLORS = [
+  "#ef4444",
+  "#3b82f6",
+  "#22c55e",
+  "#f59e0b",
+  "#8b5cf6",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+];

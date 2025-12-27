@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Reorder } from "framer-motion";
 import { Badge } from "@repo/ui/components/badge";
@@ -12,7 +13,7 @@ import {
 } from "@repo/ui/components/card";
 import type { RoomPublic, Item } from "@/lib/rooms";
 import type { RankedPlayer, PlayerDiff } from "./types";
-import { POP, STAGGER } from "./constants";
+import { POP, STAGGER, DART_COLORS } from "./constants";
 
 interface HeaderProps {
   room: RoomPublic;
@@ -256,61 +257,125 @@ export function ResultsPhase({
   diffs,
   onNext,
 }: ResultsPhaseProps) {
+  const [revealedDarts, setRevealedDarts] = useState<string[]>([]);
   const symbol =
     categoryType === "ruble" ? "₽" : categoryType === "comparison" ? "%" : "€";
 
+  const sortedDiffs = [...diffs].sort(
+    (a, b) => Math.abs(a.diff) - Math.abs(b.diff),
+  );
+
+  const maxDiff = Math.max(
+    ...diffs
+      .filter((d) => Number.isFinite(d.diff))
+      .map((d) => Math.abs(d.diff)),
+    1,
+  );
+
+  const winners =
+    sortedDiffs.length > 0 && Number.isFinite(sortedDiffs[0]?.diff)
+      ? sortedDiffs
+          .filter((d) => d.diff === sortedDiffs[0]!.diff)
+          .map((d) => d.playerId)
+      : [];
+
+  const losers = diffs
+    .filter((d) => !Number.isFinite(d.diff))
+    .map((d) => d.playerId);
+
+  useEffect(() => {
+    setRevealedDarts([]);
+    sortedDiffs.forEach((d, i) => {
+      setTimeout(
+        () => setRevealedDarts((prev) => [...prev, d.playerId]),
+        i * 300 + 500,
+      );
+    });
+  }, [diffs]);
+
   return (
-    <Card className="w-full max-w-3xl">
+    <Card className="w-full max-w-4xl">
       <CardHeader>
-        <CardTitle className="text-center text-2xl">Round Results</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <motion.div
-          initial={{ rotateX: 90 }}
-          animate={{ rotateX: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
-        >
-          <img
-            src={item.imageAnswer}
-            alt={item.name}
-            className="h-full w-full object-contain"
-          />
-        </motion.div>
-        <p className="text-center text-2xl">
-          The price of{" "}
-          <span className="text-primary font-bold">{item.name}</span> is{" "}
-          <span className="text-primary font-bold">{item.price}</span>!
+        <CardTitle className="text-center text-2xl">🎯 Round Results</CardTitle>
+        <p className="text-center text-lg text-muted-foreground">
+          <span className="font-bold text-foreground">{item.name}</span> costs{" "}
+          <span className="font-bold text-primary">
+            {symbol}
+            {item.price}
+          </span>
         </p>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="flex justify-center">
+          <DartsBoard
+            diffs={diffs}
+            winners={winners}
+            losers={losers}
+            maxDiff={maxDiff}
+            revealedDarts={revealedDarts}
+          />
+        </div>
+
         <motion.div
           variants={STAGGER}
           initial="initial"
           animate="animate"
-          className="grid grid-cols-2 md:grid-cols-3 gap-3"
+          className="space-y-2"
         >
-          {diffs.map((d) => (
-            <motion.div
-              key={d.playerId}
-              variants={POP}
-              className="rounded-xl border p-3 text-center"
-            >
-              <p className="font-semibold truncate">{d.name}</p>
-              {Number.isFinite(d.diff) ? (
-                <>
-                  <p className="text-sm text-muted-foreground">Guess</p>
-                  <p className="text-xl font-bold">
-                    {symbol} {d.guess}
+          {sortedDiffs.map((d, i) => {
+            const isWinner = winners.includes(d.playerId);
+            const isLoser = losers.includes(d.playerId);
+            const color =
+              DART_COLORS[
+                diffs.findIndex((x) => x.playerId === d.playerId) %
+                  DART_COLORS.length
+              ];
+            const hasGuess = Number.isFinite(d.diff);
+
+            return (
+              <motion.div
+                key={d.playerId}
+                variants={POP}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                  isWinner
+                    ? "bg-yellow-500/10 border-yellow-500/50"
+                    : isLoser
+                      ? "bg-red-500/10 border-red-500/50"
+                      : "bg-muted/30 border-border"
+                }`}
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                  style={{ backgroundColor: color }}
+                >
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold truncate flex items-center gap-2">
+                    {d.name}
+                    {isWinner && <span>🏆</span>}
+                    {isLoser && <span className="text-sm">💀🔥</span>}
                   </p>
-                  <p className="text-sm">
-                    Diff: {symbol} {Math.round(d.diff)}
+                  <p className="text-sm text-muted-foreground">
+                    {hasGuess ? `Guessed: ${symbol}${d.guess}` : "No guess"}
                   </p>
-                </>
-              ) : (
-                <p className="text-muted-foreground">No guess</p>
-              )}
-            </motion.div>
-          ))}
+                </div>
+                {hasGuess && (
+                  <div
+                    className={`text-right ${isWinner ? "text-green-500" : isLoser ? "text-red-500" : "text-foreground"}`}
+                  >
+                    <p className="text-xl font-bold">
+                      {d.guess! > item.price ? "+" : "-"}
+                      {Math.round(d.diff)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">difference</p>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
         </motion.div>
+
         <div className="flex justify-center">
           <Button onClick={onNext} className="h-12 px-8 text-lg">
             Next
@@ -334,6 +399,221 @@ export function GameOverPhase() {
   );
 }
 
+interface DartsBoardProps {
+  diffs: PlayerDiff[];
+  winners: string[];
+  losers: string[];
+  maxDiff: number;
+  revealedDarts: string[];
+}
+
+function DartsBoard({
+  diffs,
+  winners,
+  losers,
+  maxDiff,
+  revealedDarts,
+}: DartsBoardProps) {
+  const size = 320;
+  const center = size / 2;
+  const boardRadius = 130;
+  const ringRadii = [130, 105, 80, 55, 30, 12];
+  const ringColors = [
+    "#1a1a2e",
+    "#16213e",
+    "#0f3460",
+    "#e94560",
+    "#0f3460",
+    "#e94560",
+  ];
+
+  return (
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.4, type: "spring" }}
+      className="relative overflow-visible"
+      style={{ width: size, height: size }}
+    >
+      <svg
+        viewBox={`0 0 ${size} ${size}`}
+        className="w-full h-full drop-shadow-xl"
+      >
+        <defs>
+          <radialGradient id="boardShine" cx="35%" cy="35%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.1)" />
+          </radialGradient>
+        </defs>
+
+        <circle
+          cx={center}
+          cy={center}
+          r={boardRadius + 10}
+          fill="#2a2a3a"
+          stroke="#444"
+          strokeWidth="4"
+        />
+
+        {ringRadii.map((r, i) => (
+          <circle
+            key={i}
+            cx={center}
+            cy={center}
+            r={r}
+            fill={ringColors[i]}
+            stroke="#333"
+            strokeWidth="1"
+          />
+        ))}
+
+        <circle
+          cx={center}
+          cy={center}
+          r={ringRadii[ringRadii.length - 1]}
+          fill="#ffd700"
+        />
+
+        {[...Array(8)].map((_, i) => {
+          const angle = (i * 45 * Math.PI) / 180;
+          return (
+            <line
+              key={i}
+              x1={center}
+              y1={center}
+              x2={center + Math.cos(angle) * boardRadius}
+              y2={center + Math.sin(angle) * boardRadius}
+              stroke="#333"
+              strokeWidth="1"
+              opacity="0.5"
+            />
+          );
+        })}
+      </svg>
+
+      <AnimatePresence>
+        {diffs.map((d, i) => {
+          if (!revealedDarts.includes(d.playerId)) return null;
+          const isLoser =
+            losers.includes(d.playerId) || !Number.isFinite(d.diff);
+          const isWinner = winners.includes(d.playerId);
+          const color = DART_COLORS[i % DART_COLORS.length];
+          const pos = isLoser
+            ? getMissPosition(i, center, boardRadius)
+            : getDartPosition(d.diff, maxDiff, i, center, boardRadius);
+
+          return (
+            <motion.div
+              key={d.playerId}
+              initial={{ left: center + 100, top: -50, scale: 0.5, opacity: 0 }}
+              animate={{
+                left: pos.x - 12,
+                top: pos.y - 12,
+                scale: 1,
+                opacity: 1,
+              }}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              className="absolute"
+              style={{ zIndex: isWinner ? 20 : 10 }}
+            >
+              <DartPin
+                color={color!}
+                isWinner={isWinner}
+                isLoser={isLoser}
+                name={d.name}
+              />
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+interface DartPinProps {
+  color: string;
+  isWinner: boolean;
+  isLoser: boolean;
+  name: string;
+}
+
+function DartPin({ color, isWinner, isLoser, name }: DartPinProps) {
+  return (
+    <div className="relative">
+      <motion.div
+        animate={isWinner ? { scale: [1, 1.15, 1] } : {}}
+        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+        className="relative"
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          className="drop-shadow-md"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            fill={color}
+            stroke="white"
+            strokeWidth="2"
+          />
+          <circle cx="12" cy="12" r="4" fill="white" opacity="0.4" />
+        </svg>
+        {isWinner && (
+          <motion.div
+            className="absolute -top-1 -right-1 text-sm"
+            animate={{ rotate: [0, 15, -15, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+          >
+            ⭐
+          </motion.div>
+        )}
+      </motion.div>
+
+      {isLoser && (
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
+          {[...Array(3)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute text-xs"
+              style={{ left: (i - 1) * 6 }}
+              animate={{
+                y: [0, -10, -16],
+                opacity: [1, 0.7, 0],
+                scale: [0.9, 1.1, 0.7],
+              }}
+              transition={{
+                repeat: Infinity,
+                duration: 2 + i * 0.3,
+                delay: i * 0.4,
+                ease: "easeOut",
+              }}
+            >
+              🔥
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      <motion.div
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.4 }}
+        className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
+          isLoser
+            ? "bg-red-500 text-white"
+            : isWinner
+              ? "bg-yellow-400 text-black"
+              : "bg-background border text-foreground"
+        }`}
+      >
+        {name}
+      </motion.div>
+    </div>
+  );
+}
 function getPlayerStyle(
   playerId: string,
   voted: boolean,
@@ -352,4 +632,29 @@ function getMedal(rank: number): string {
   if (rank === 2) return "🥈";
   if (rank === 3) return "🥉";
   return "";
+}
+
+function getDartPosition(
+  diff: number,
+  maxDiff: number,
+  index: number,
+  center: number,
+  boardRadius: number,
+) {
+  const normalized = Math.min(Math.abs(diff) / maxDiff, 1);
+  const distance = 12 + normalized * (boardRadius - 20);
+  const angle = (((index * 137.5 + 45) % 360) * Math.PI) / 180;
+  return {
+    x: center + Math.cos(angle) * distance,
+    y: center + Math.sin(angle) * distance,
+  };
+}
+
+function getMissPosition(index: number, center: number, boardRadius: number) {
+  const angle = (((index * 90 + 45) % 360) * Math.PI) / 180;
+  const distance = boardRadius + 25 + (index % 3) * 15;
+  return {
+    x: center + Math.cos(angle) * distance,
+    y: center + Math.sin(angle) * distance,
+  };
 }
