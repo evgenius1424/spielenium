@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {motion, AnimatePresence} from "framer-motion";
 import {Reorder} from "framer-motion";
 import {Badge} from "@repo/ui/components/badge";
@@ -662,42 +662,60 @@ interface PerfectGuessOverlayProps {
 }
 
 function PerfectGuessOverlay({playerName}: PerfectGuessOverlayProps) {
-  const emojis = ["🎉", "🎊", "🏆", "⭐", "💰", "🔥", "💎", "👑"];
+  const confetti = useMemo(() => {
+    const emojis = ["🎉", "🎊", "🏆", "⭐", "💰", "🔥", "💎", "👑"];
+    return [...Array(30)].map((_, i) => ({
+      id: i,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+      left: Math.random() * 100,
+      duration: Math.random() * 3 + 3,
+      delay: Math.random() * 2,
+      rotate: Math.random() * 360 - 180,
+    }));
+  }, []);
+
+  const bursts = useMemo(() => {
+    const colors = ["#ffd700", "#ff6b6b", "#4ecdc4", "#a55eea", "#26de81", "#fd79a8"];
+    return [...Array(8)].map((_, i) => ({
+      id: i,
+      color: colors[i % colors.length],
+      x: Math.cos((i * 45 * Math.PI) / 180) * 120,
+      y: Math.sin((i * 45 * Math.PI) / 180) * 120,
+    }));
+  }, []);
 
   return (
     <>
-      {[...Array(30)].map((_, i) => (
+      {confetti.map((c) => (
         <motion.div
-          key={i}
+          key={c.id}
           className="absolute text-2xl pointer-events-none"
-          style={{left: `${Math.random() * 100}%`}}
+          style={{left: `${c.left}%`}}
           initial={{y: -30, opacity: 1, rotate: 0}}
           animate={{
             y: "100vh",
-            rotate: Math.random() * 360 - 180,
+            rotate: c.rotate,
           }}
           transition={{
-            duration: Math.random() * 3 + 3,
-            delay: Math.random() * 2,
+            duration: c.duration,
+            delay: c.delay,
             repeat: Infinity,
             ease: "linear",
           }}
         >
-          {emojis[Math.floor(Math.random() * emojis.length)]}
+          {c.emoji}
         </motion.div>
       ))}
 
-      {[...Array(8)].map((_, i) => (
+      {bursts.map((b) => (
         <motion.div
-          key={`burst-${i}`}
+          key={`burst-${b.id}`}
           className="absolute left-1/2 top-1/3 w-3 h-3 rounded-full pointer-events-none"
-          style={{
-            background: ["#ffd700", "#ff6b6b", "#4ecdc4", "#a55eea", "#26de81", "#fd79a8"][i % 6],
-          }}
+          style={{background: b.color}}
           initial={{x: "-50%", y: "-50%", scale: 0, opacity: 1}}
           animate={{
-            x: `calc(-50% + ${Math.cos((i * 45 * Math.PI) / 180) * 120}px)`,
-            y: `calc(-50% + ${Math.sin((i * 45 * Math.PI) / 180) * 120}px)`,
+            x: `calc(-50% + ${b.x}px)`,
+            y: `calc(-50% + ${b.y}px)`,
             scale: [0, 1, 0],
             opacity: [1, 1, 0],
           }}
