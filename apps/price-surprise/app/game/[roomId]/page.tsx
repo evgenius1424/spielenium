@@ -1,34 +1,39 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
-import { Button } from "@repo/ui/components/button";
+import {useEffect, useState, useCallback} from "react";
+import {useParams} from "next/navigation";
+import {Button} from "@repo/ui/components/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/card";
-import { Badge } from "@repo/ui/components/badge";
-import { Reorder, motion, AnimatePresence } from "framer-motion";
-import type { RoomPublic, Item } from "@/lib/rooms";
+import {Badge} from "@repo/ui/components/badge";
+import {Reorder, motion, AnimatePresence} from "framer-motion";
+import type {RoomPublic, Item} from "@/lib/rooms";
 
 const PAGE_FADE = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 },
-  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] },
+  initial: {opacity: 0, y: 12},
+  animate: {opacity: 1, y: 0},
+  exit: {opacity: 0, y: -12},
+  transition: {duration: 0.35, ease: [0.16, 1, 0.3, 1]},
 } as const;
 
 const STAGGER = {
-  animate: { transition: { staggerChildren: 0.08 } },
+  animate: {transition: {staggerChildren: 0.15}},
 } as const;
 
 const POP = {
-  initial: { scale: 0.95, opacity: 0 },
-  animate: { scale: 1, opacity: 1 },
-  exit: { scale: 0.95, opacity: 0 },
+  initial: {scale: 0.8, opacity: 0, y: 20},
+  animate: {scale: 1, opacity: 1, y: 0},
+  exit: {scale: 0.8, opacity: 0},
 } as const;
+
+const DART_COLORS = [
+  "#ef4444", "#3b82f6", "#22c55e", "#f59e0b",
+  "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"
+];
 
 type PlayerDiff = {
   playerId: string;
@@ -38,7 +43,7 @@ type PlayerDiff = {
 };
 
 export default function HostRoom() {
-  const { roomId } = useParams<{ roomId: string }>();
+  const {roomId} = useParams<{ roomId: string }>();
   const [room, setRoom] = useState<RoomPublic | null>(null);
   const [diffs, setDiffs] = useState<PlayerDiff[]>([]);
   const [winners, setWinners] = useState<string[]>([]);
@@ -87,22 +92,22 @@ export default function HostRoom() {
 
   const startGame = useCallback(async () => {
     if (!room) return;
-    const res = await fetch(`/api/rooms/${room.id}/start`, { method: "POST" });
+    const res = await fetch(`/api/rooms/${room.id}/start`, {method: "POST"});
     if (!res.ok) console.error("Failed to start game");
   }, [room]);
 
   const closeRound = useCallback(async () => {
     await fetch(`/api/rooms/${roomId}/next`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "close" }),
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "close"}),
     });
   }, [roomId]);
 
   const nextStep = useCallback(async () => {
     await fetch(`/api/rooms/${roomId}/next`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify({
         action: room?.categories.length ? "next" : "game-over",
       }),
@@ -124,7 +129,7 @@ export default function HostRoom() {
       {...PAGE_FADE}
       className="h-screen flex flex-col overflow-hidden"
     >
-      <Header room={room} copied={copied} onCopyLink={copyJoinLink} />
+      <Header room={room} copied={copied} onCopyLink={copyJoinLink}/>
 
       <div className="flex-1 flex min-h-0 relative">
         <main className="flex-1 flex items-center justify-center p-4 overflow-auto">
@@ -160,11 +165,13 @@ export default function HostRoom() {
                 item={room.currentItem}
                 categoryType={room.selectedCategory?.type}
                 diffs={diffs}
+                winners={winners}
+                losers={losers}
                 onNext={nextStep}
               />
             )}
 
-            {room.state === "game-over" && <GameOverPhase key="game-over" />}
+            {room.state === "game-over" && <GameOverPhase key="game-over"/>}
           </AnimatePresence>
         </main>
 
@@ -182,10 +189,10 @@ export default function HostRoom() {
 }
 
 function Header({
-  room,
-  copied,
-  onCopyLink,
-}: {
+                  room,
+                  copied,
+                  onCopyLink,
+                }: {
   room: RoomPublic;
   copied: boolean;
   onCopyLink: () => void;
@@ -197,9 +204,9 @@ function Header({
           src="/logo.png"
           alt="Price Surprise"
           className="h-12 sm:h-14 w-auto"
-          initial={{ rotate: -5, opacity: 0 }}
-          animate={{ rotate: 0, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 200 }}
+          initial={{rotate: -5, opacity: 0}}
+          animate={{rotate: 0, opacity: 1}}
+          transition={{type: "spring", stiffness: 200}}
         />
         <h1
           className="text-3xl font-bold cursor-pointer select-all"
@@ -211,9 +218,9 @@ function Header({
         <AnimatePresence>
           {copied && (
             <motion.span
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0 }}
+              initial={{opacity: 0, x: -10}}
+              animate={{opacity: 1, x: 0}}
+              exit={{opacity: 0}}
               className="text-sm text-green-600 font-medium"
             >
               Link copied!
@@ -227,11 +234,11 @@ function Header({
 }
 
 function Scoreboard({
-  players,
-  winners,
-  losers,
-  isGameOver,
-}: {
+                      players,
+                      winners,
+                      losers,
+                      isGameOver,
+                    }: {
   players: RankedPlayer[];
   winners: string[];
   losers: string[];
@@ -246,7 +253,8 @@ function Scoreboard({
         <Reorder.Group
           axis="y"
           values={players}
-          onReorder={() => {}}
+          onReorder={() => {
+          }}
           className="space-y-2"
         >
           {players.map((p) => (
@@ -269,8 +277,8 @@ function Scoreboard({
                   !losers.includes(p.id) && <span>✅</span>}
                 <motion.span
                   key={p.score}
-                  initial={{ scale: 1.2 }}
-                  animate={{ scale: 1 }}
+                  initial={{scale: 1.2}}
+                  animate={{scale: 1}}
                   className="text-lg font-bold min-w-[2ch] text-right"
                 >
                   {p.score}
@@ -285,9 +293,9 @@ function Scoreboard({
 }
 
 function LobbyPhase({
-  onStart,
-  disabled,
-}: {
+                      onStart,
+                      disabled,
+                    }: {
   onStart: () => void;
   disabled: boolean;
 }) {
@@ -313,9 +321,9 @@ function LobbyPhase({
 }
 
 function CategorySelectionPhase({
-  pickerName,
-  categories,
-}: {
+                                  pickerName,
+                                  categories,
+                                }: {
   pickerName?: string;
   categories: RoomPublic["categories"];
 }) {
@@ -361,10 +369,10 @@ function CategorySelectionPhase({
 }
 
 function GuessingPhase({
-  item,
-  categoryName,
-  onCloseRound,
-}: {
+                         item,
+                         categoryName,
+                         onCloseRound,
+                       }: {
   item: Item;
   categoryName?: string;
   onCloseRound: () => void;
@@ -380,8 +388,8 @@ function GuessingPhase({
       </CardHeader>
       <CardContent className="space-y-4">
         <motion.div
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
+          initial={{scale: 0.95, opacity: 0}}
+          animate={{scale: 1, opacity: 1}}
           className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
         >
           <img
@@ -408,78 +416,237 @@ function GuessingPhase({
 }
 
 function ResultsPhase({
-  item,
-  categoryType,
-  diffs,
-  onNext,
-}: {
+                        item,
+                        categoryType,
+                        diffs,
+                        winners,
+                        losers,
+                        onNext,
+                      }: {
   item: Item;
   categoryType?: string;
   diffs: PlayerDiff[];
+  winners: string[];
+  losers: string[];
   onNext: () => void;
 }) {
-  const symbol =
-    categoryType === "ruble" ? "₽" : categoryType === "comparison" ? "%" : "€";
+  const symbol = categoryType === "ruble" ? "₽" : categoryType === "comparison" ? "%" : "€";
+  const [revealedDarts, setRevealedDarts] = useState<string[]>([]);
+  const sortedDiffs = [...diffs].sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff));
+  const maxDiff = Math.max(...diffs.filter(d => Number.isFinite(d.diff)).map(d => Math.abs(d.diff)), 1);
+
+  useEffect(() => {
+    setRevealedDarts([]);
+    sortedDiffs.forEach((d, i) => {
+      setTimeout(() => setRevealedDarts(prev => [...prev, d.playerId]), i * 300 + 500);
+    });
+  }, [diffs]);
 
   return (
-    <Card className="w-full max-w-3xl">
+    <Card className="w-full max-w-4xl">
       <CardHeader>
-        <CardTitle className="text-center text-2xl">Round Results</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <motion.div
-          initial={{ rotateX: 90 }}
-          animate={{ rotateX: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
-        >
-          <img
-            src={item.imageAnswer}
-            alt={item.name}
-            className="h-full w-full object-contain"
-          />
-        </motion.div>
-        <p className="text-center text-2xl">
-          The price of{" "}
-          <span className="text-primary font-bold">{item.name}</span> is{" "}
-          <span className="text-primary font-bold">{item.price}</span>!
+        <CardTitle className="text-center text-2xl">🎯 Round Results</CardTitle>
+        <p className="text-center text-lg text-muted-foreground">
+          <span className="font-bold text-foreground">{item.name}</span> costs{" "}
+          <span className="font-bold text-primary">{symbol}{item.price}</span>
         </p>
-        <motion.div
-          variants={STAGGER}
-          initial="initial"
-          animate="animate"
-          className="grid grid-cols-2 md:grid-cols-3 gap-3"
-        >
-          {diffs.map((d) => (
-            <motion.div
-              key={d.playerId}
-              variants={POP}
-              className="rounded-xl border p-3 text-center"
-            >
-              <p className="font-semibold truncate">{d.name}</p>
-              {Number.isFinite(d.diff) ? (
-                <>
-                  <p className="text-sm text-muted-foreground">Guess</p>
-                  <p className="text-xl font-bold">
-                    {symbol} {d.guess}
-                  </p>
-                  <p className="text-sm">
-                    Diff: {symbol} {Math.round(d.diff)}
-                  </p>
-                </>
-              ) : (
-                <p className="text-muted-foreground">No guess</p>
-              )}
-            </motion.div>
-          ))}
-        </motion.div>
+      </CardHeader>
+      <CardContent className="space-y-6">
         <div className="flex justify-center">
-          <Button onClick={onNext} className="h-12 px-8 text-lg">
-            Next
-          </Button>
+          <DartsBoard diffs={diffs} winners={winners} losers={losers} maxDiff={maxDiff} revealedDarts={revealedDarts}/>
+        </div>
+
+        <motion.div variants={STAGGER} initial="initial" animate="animate" className="space-y-2">
+          {sortedDiffs.map((d, i) => {
+            const isWinner = winners.includes(d.playerId);
+            const isLoser = losers.includes(d.playerId);
+            const color = DART_COLORS[diffs.findIndex(x => x.playerId === d.playerId) % DART_COLORS.length];
+            const hasGuess = Number.isFinite(d.diff);
+
+            return (
+              <motion.div
+                key={d.playerId}
+                variants={POP}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                  isWinner ? "bg-yellow-500/10 border-yellow-500/50" :
+                    isLoser ? "bg-red-500/10 border-red-500/50" :
+                      "bg-muted/30 border-border"
+                }`}
+              >
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0"
+                  style={{backgroundColor: color}}>
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold truncate flex items-center gap-2">
+                    {d.name}
+                    {isWinner && <span>🏆</span>}
+                    {isLoser && <span className="text-sm">💀🔥</span>}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {hasGuess ? `Guessed: ${symbol}${d.guess}` : "No guess"}
+                  </p>
+                </div>
+                {hasGuess && (
+                  <div
+                    className={`text-right ${isWinner ? "text-green-500" : isLoser ? "text-red-500" : "text-foreground"}`}>
+                    <p className="text-xl font-bold">{d.guess! > item.price ? "+" : "-"}{Math.round(d.diff)}</p>
+                    <p className="text-xs text-muted-foreground">difference</p>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </motion.div>
+
+        <div className="flex justify-center">
+          <Button onClick={onNext} className="h-12 px-8 text-lg">Next</Button>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function DartsBoard({
+                      diffs,
+                      winners,
+                      losers,
+                      maxDiff,
+                      revealedDarts,
+                    }: {
+  diffs: PlayerDiff[];
+  winners: string[];
+  losers: string[];
+  maxDiff: number;
+  revealedDarts: string[];
+}) {
+  const size = 320;
+  const center = size / 2;
+  const boardRadius = 130;
+  const ringRadii = [130, 105, 80, 55, 30, 12];
+  const ringColors = ["#1a1a2e", "#16213e", "#0f3460", "#e94560", "#0f3460", "#e94560"];
+
+  return (
+    <motion.div
+      initial={{scale: 0.9, opacity: 0}}
+      animate={{scale: 1, opacity: 1}}
+      transition={{duration: 0.4, type: "spring"}}
+      className="relative overflow-visible"
+      style={{width: size, height: size}}
+    >
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full drop-shadow-xl">
+        <defs>
+          <radialGradient id="boardShine" cx="35%" cy="35%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.15)"/>
+            <stop offset="100%" stopColor="rgba(0,0,0,0.1)"/>
+          </radialGradient>
+        </defs>
+
+        <circle cx={center} cy={center} r={boardRadius + 10} fill="#2a2a3a" stroke="#444" strokeWidth="4"/>
+
+        {ringRadii.map((r, i) => (
+          <circle key={i} cx={center} cy={center} r={r} fill={ringColors[i]} stroke="#333" strokeWidth="1"/>
+        ))}
+
+        <circle cx={center} cy={center} r={ringRadii[ringRadii.length - 1]} fill="#ffd700"/>
+
+        {[...Array(8)].map((_, i) => {
+          const angle = (i * 45) * Math.PI / 180;
+          return (
+            <line
+              key={i}
+              x1={center}
+              y1={center}
+              x2={center + Math.cos(angle) * boardRadius}
+              y2={center + Math.sin(angle) * boardRadius}
+              stroke="#333"
+              strokeWidth="1"
+              opacity="0.5"
+            />
+          );
+        })}
+
+        <text x={center} y={18} textAnchor="middle" fill="#ffd700" fontSize="11" fontWeight="bold">BULLSEYE</text>
+      </svg>
+
+      <AnimatePresence>
+        {diffs.map((d, i) => {
+          if (!revealedDarts.includes(d.playerId)) return null;
+          const isLoser = losers.includes(d.playerId) || !Number.isFinite(d.diff);
+          const isWinner = winners.includes(d.playerId);
+          const color = DART_COLORS[i % DART_COLORS.length];
+          const pos = isLoser
+            ? getMissPosition(i, center, boardRadius)
+            : getDartPosition(d.diff, maxDiff, i, center, boardRadius);
+
+          return (
+            <motion.div
+              key={d.playerId}
+              initial={{left: center + 100, top: -50, scale: 0.5, opacity: 0}}
+              animate={{left: pos.x - 12, top: pos.y - 12, scale: 1, opacity: 1}}
+              transition={{type: "spring", stiffness: 300, damping: 20}}
+              className="absolute"
+              style={{zIndex: isWinner ? 20 : 10}}
+            >
+              <DartPin color={color} isWinner={isWinner} isLoser={isLoser} name={d.name}/>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function DartPin({color, isWinner, isLoser, name}: {
+  color: string;
+  isWinner: boolean;
+  isLoser: boolean;
+  name: string
+}) {
+  return (
+    <div className="relative">
+      <motion.div animate={isWinner ? {scale: [1, 1.1, 1]} : {}} transition={{repeat: Infinity, duration: 1.5}}
+                  className="relative">
+        <svg width="24" height="24" viewBox="0 0 24 24" className="drop-shadow-md">
+          <circle cx="12" cy="12" r="10" fill={color} stroke="white" strokeWidth="2"/>
+          <circle cx="12" cy="12" r="4" fill="white" opacity="0.4"/>
+        </svg>
+        {isWinner && (
+          <motion.div className="absolute -top-1 -right-1 text-sm" animate={{rotate: [0, 10, -10, 0]}}
+                      transition={{repeat: Infinity, duration: 0.5}}>
+            ⭐
+          </motion.div>
+        )}
+      </motion.div>
+
+      {isLoser && (
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2">
+          {[...Array(3)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute text-xs"
+              style={{ left: (i - 1) * 6 }}
+              animate={{ y: [0, -8, -12], opacity: [1, 0.8, 0], scale: [1, 1.2, 0.8] }}
+              transition={{ repeat: Infinity, duration: 1.2 + i * 0.2, delay: i * 0.15 }}
+            >
+              🔥
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      <motion.div
+        initial={{opacity: 0, y: 5}}
+        animate={{opacity: 1, y: 0}}
+        transition={{delay: 0.2}}
+        className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
+          isLoser ? "bg-red-500 text-white" : isWinner ? "bg-yellow-400 text-black" : "bg-background border text-foreground"
+        }`}
+      >
+        {name}
+      </motion.div>
+    </div>
   );
 }
 
@@ -515,18 +682,12 @@ function computeRankedPlayers(players: RoomPublic["players"]): RankedPlayer[] {
       (i > 0 && p.score === sorted[i - 1]!.score) ||
       (i + 1 < sorted.length && p.score === sorted[i + 1]!.score);
 
-    return { ...p, rank, isTied };
+    return {...p, rank, isTied};
   });
 }
 
-function getPlayerStyle(
-  playerId: string,
-  voted: boolean,
-  winners: string[],
-  losers: string[],
-): string {
-  if (winners.includes(playerId))
-    return "bg-yellow-100 border-l-4 border-yellow-400";
+function getPlayerStyle(playerId: string, voted: boolean, winners: string[], losers: string[]): string {
+  if (winners.includes(playerId)) return "bg-yellow-100 border-l-4 border-yellow-400";
   if (losers.includes(playerId)) return "bg-red-100 border-l-4 border-red-400";
   if (voted) return "bg-green-50 border-l-4 border-green-400";
   return "bg-background border-l-4 border-transparent";
@@ -537,4 +698,17 @@ function getMedal(rank: number): string {
   if (rank === 2) return "🥈";
   if (rank === 3) return "🥉";
   return "";
+}
+
+function getDartPosition(diff: number, maxDiff: number, index: number, center: number, boardRadius: number) {
+  const normalized = Math.min(Math.abs(diff) / maxDiff, 1);
+  const distance = 12 + normalized * (boardRadius - 20);
+  const angle = ((index * 137.5 + 45) % 360) * Math.PI / 180;
+  return {x: center + Math.cos(angle) * distance, y: center + Math.sin(angle) * distance};
+}
+
+function getMissPosition(index: number, center: number, boardRadius: number) {
+  const angle = ((index * 90 + 45) % 360) * Math.PI / 180;
+  const distance = boardRadius + 25 + (index % 3) * 15;
+  return {x: center + Math.cos(angle) * distance, y: center + Math.sin(angle) * distance};
 }
