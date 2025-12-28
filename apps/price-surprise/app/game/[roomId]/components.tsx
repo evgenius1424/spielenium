@@ -1,19 +1,20 @@
 "use client";
 
-import {useEffect, useMemo, useState} from "react";
-import {motion, AnimatePresence} from "framer-motion";
-import {Reorder} from "framer-motion";
-import {Badge} from "@repo/ui/components/badge";
-import {Button} from "@repo/ui/components/button";
+import { useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Reorder } from "framer-motion";
+import { Badge } from "@repo/ui/components/badge";
+import { Button } from "@repo/ui/components/button";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@repo/ui/components/card";
-import type {RoomPublic, Item} from "@/lib/rooms";
-import type {RankedPlayer, PlayerDiff} from "./types";
-import {POP, STAGGER, DART_COLORS} from "./constants";
+import type { RoomPublic, Item } from "@/lib/rooms";
+import type { RankedPlayer, PlayerDiff } from "./types";
+import { POP, DART_COLORS } from "./constants";
+import { useEnterKey } from "@/hooks/use-enter-key";
 
 interface HeaderProps {
   room: RoomPublic;
@@ -21,7 +22,7 @@ interface HeaderProps {
   onCopyLink: () => void;
 }
 
-export function Header({room, copied, onCopyLink}: HeaderProps) {
+export function Header({ room, copied, onCopyLink }: HeaderProps) {
   return (
     <header className="flex items-center justify-between p-4">
       <div className="flex items-center gap-3">
@@ -29,9 +30,9 @@ export function Header({room, copied, onCopyLink}: HeaderProps) {
           src="/logo.png"
           alt="Price Surprise"
           className="h-12 sm:h-14 w-auto"
-          initial={{rotate: -5, opacity: 0}}
-          animate={{rotate: 0, opacity: 1}}
-          transition={{type: "spring", stiffness: 200}}
+          initial={{ rotate: -5, opacity: 0 }}
+          animate={{ rotate: 0, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 200 }}
         />
         <h1
           className="text-3xl font-bold cursor-pointer select-all"
@@ -43,9 +44,9 @@ export function Header({room, copied, onCopyLink}: HeaderProps) {
         <AnimatePresence>
           {copied && (
             <motion.span
-              initial={{opacity: 0, x: -10}}
-              animate={{opacity: 1, x: 0}}
-              exit={{opacity: 0}}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
               className="text-sm text-green-600 font-medium"
             >
               Link copied!
@@ -66,11 +67,11 @@ interface ScoreboardProps {
 }
 
 export function Scoreboard({
-                             players,
-                             winners,
-                             losers,
-                             isGameOver,
-                           }: ScoreboardProps) {
+  players,
+  winners,
+  losers,
+  isGameOver,
+}: ScoreboardProps) {
   return (
     <Card className="max-h-[calc(100vh-8rem)] flex flex-col">
       <CardHeader className="flex-shrink-0">
@@ -80,8 +81,7 @@ export function Scoreboard({
         <Reorder.Group
           axis="y"
           values={players}
-          onReorder={() => {
-          }}
+          onReorder={() => {}}
           className="space-y-2"
         >
           {players.map((p) => (
@@ -104,8 +104,8 @@ export function Scoreboard({
                   !losers.includes(p.id) && <span>✅</span>}
                 <motion.span
                   key={p.score}
-                  initial={{scale: 1.2}}
-                  animate={{scale: 1}}
+                  initial={{ scale: 1.2 }}
+                  animate={{ scale: 1 }}
                   className="text-lg font-bold min-w-[2ch] text-right"
                 >
                   {p.score}
@@ -124,7 +124,9 @@ interface LobbyPhaseProps {
   disabled: boolean;
 }
 
-export function LobbyPhase({onStart, disabled}: LobbyPhaseProps) {
+export function LobbyPhase({ onStart, disabled }: LobbyPhaseProps) {
+  useEnterKey(onStart, !disabled);
+
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
@@ -152,9 +154,9 @@ interface CategorySelectionPhaseProps {
 }
 
 export function CategorySelectionPhase({
-                                         pickerName,
-                                         categories,
-                                       }: CategorySelectionPhaseProps) {
+  pickerName,
+  categories,
+}: CategorySelectionPhaseProps) {
   return (
     <Card className="w-full max-w-3xl">
       <CardHeader>
@@ -203,10 +205,12 @@ interface GuessingPhaseProps {
 }
 
 export function GuessingPhase({
-                                item,
-                                categoryName,
-                                onCloseRound,
-                              }: GuessingPhaseProps) {
+  item,
+  categoryName,
+  onCloseRound,
+}: GuessingPhaseProps) {
+  useEnterKey(onCloseRound);
+
   return (
     <Card className="w-full max-w-2xl">
       <CardHeader>
@@ -218,8 +222,8 @@ export function GuessingPhase({
       </CardHeader>
       <CardContent className="space-y-4">
         <motion.div
-          initial={{scale: 0.95, opacity: 0}}
-          animate={{scale: 1, opacity: 1}}
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
           className="mx-auto w-full max-w-md aspect-[4/3] overflow-hidden rounded-xl border bg-muted"
         >
           <img
@@ -260,20 +264,28 @@ interface ResultsPhaseProps {
 }
 
 export function ResultsPhase({
-                               item,
-                               categoryType,
-                               diffs,
-                               onNext,
-                             }: ResultsPhaseProps) {
+  item,
+  categoryType,
+  diffs,
+  onNext,
+}: ResultsPhaseProps) {
   const [showDartboard, setShowDartboard] = useState(!item.imageAnswer);
   const [revealedDarts, setRevealedDarts] = useState<string[]>([]);
+
+  // Enter key handlers - show results when not showing dartboard, next when showing dartboard
+  useEnterKey(() => {
+    if (!showDartboard) setShowDartboard(true);
+    else {
+      onNext();
+    }
+  });
 
   const symbol =
     categoryType === "ruble" ? "₽" : categoryType === "comparison" ? "%" : "€";
 
   const sortedDiffs = useMemo(
     () => [...diffs].sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff)),
-    [diffs]
+    [diffs],
   );
 
   const maxDiff = useMemo(
@@ -282,14 +294,14 @@ export function ResultsPhase({
         ...diffs
           .filter((d) => Number.isFinite(d.diff))
           .map((d) => Math.abs(d.diff)),
-        1
+        1,
       ),
-    [diffs]
+    [diffs],
   );
 
   const perfectGuessers = useMemo(
     () => diffs.filter((d) => d.diff === 0),
-    [diffs]
+    [diffs],
   );
 
   const hasPerfectGuess = perfectGuessers.length > 0;
@@ -298,15 +310,15 @@ export function ResultsPhase({
     () =>
       sortedDiffs.length > 0 && Number.isFinite(sortedDiffs[0]?.diff)
         ? sortedDiffs
-          .filter((d) => d.diff === sortedDiffs[0]!.diff)
-          .map((d) => d.playerId)
+            .filter((d) => d.diff === sortedDiffs[0]!.diff)
+            .map((d) => d.playerId)
         : [],
-    [sortedDiffs]
+    [sortedDiffs],
   );
 
   const losers = useMemo(
     () => diffs.filter((d) => !Number.isFinite(d.diff)).map((d) => d.playerId),
-    [diffs]
+    [diffs],
   );
 
   useEffect(() => {
@@ -317,7 +329,7 @@ export function ResultsPhase({
     sortedDiffs.forEach((d, i) => {
       const timeout = setTimeout(
         () => setRevealedDarts((prev) => [...prev, d.playerId]),
-        i * 300 + 500
+        i * 300 + 500,
       );
       timeouts.push(timeout);
     });
@@ -423,9 +435,9 @@ export function ResultsPhase({
             const isPerfect = d.diff === 0;
             const color =
               DART_COLORS[
-              diffs.findIndex((x) => x.playerId === d.playerId) %
-              DART_COLORS.length
-                ];
+                diffs.findIndex((x) => x.playerId === d.playerId) %
+                  DART_COLORS.length
+              ];
             const hasGuess = Number.isFinite(d.diff);
 
             return (
@@ -438,10 +450,10 @@ export function ResultsPhase({
                   y: 0,
                   boxShadow: isPerfect
                     ? [
-                      "0 0 0 0 rgba(234, 179, 8, 0)",
-                      "0 0 20px 4px rgba(234, 179, 8, 0.4)",
-                      "0 0 0 0 rgba(234, 179, 8, 0)",
-                    ]
+                        "0 0 0 0 rgba(234, 179, 8, 0)",
+                        "0 0 20px 4px rgba(234, 179, 8, 0.4)",
+                        "0 0 0 0 rgba(234, 179, 8, 0)",
+                      ]
                     : "none",
                 }}
                 transition={{
@@ -540,13 +552,13 @@ interface DartsBoardProps {
 }
 
 function DartsBoard({
-                      diffs,
-                      winners,
-                      losers,
-                      maxDiff,
-                      revealedDarts,
-                      actualPrice,
-                    }: DartsBoardProps) {
+  diffs,
+  winners,
+  losers,
+  maxDiff,
+  revealedDarts,
+  actualPrice,
+}: DartsBoardProps) {
   const size = 320;
   const center = size / 2;
   const boardRadius = 130;
@@ -562,11 +574,11 @@ function DartsBoard({
 
   return (
     <motion.div
-      initial={{scale: 0.9, opacity: 0}}
-      animate={{scale: 1, opacity: 1}}
-      transition={{duration: 0.4, type: "spring"}}
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ duration: 0.4, type: "spring" }}
       className="relative overflow-visible"
-      style={{width: size, height: size}}
+      style={{ width: size, height: size }}
     >
       <svg
         viewBox={`0 0 ${size} ${size}`}
@@ -574,8 +586,8 @@ function DartsBoard({
       >
         <defs>
           <radialGradient id="boardShine" cx="35%" cy="35%">
-            <stop offset="0%" stopColor="rgba(255,255,255,0.15)"/>
-            <stop offset="100%" stopColor="rgba(0,0,0,0.1)"/>
+            <stop offset="0%" stopColor="rgba(255,255,255,0.15)" />
+            <stop offset="100%" stopColor="rgba(0,0,0,0.1)" />
           </radialGradient>
         </defs>
 
@@ -633,21 +645,28 @@ function DartsBoard({
           const color = DART_COLORS[i % DART_COLORS.length];
           const pos = isLoser
             ? getMissPosition(i, center, boardRadius)
-            : getDartPosition(d.diff, maxDiff, i, center, boardRadius, actualPrice);
+            : getDartPosition(
+                d.diff,
+                maxDiff,
+                i,
+                center,
+                boardRadius,
+                actualPrice,
+              );
 
           return (
             <motion.div
               key={d.playerId}
-              initial={{left: center + 100, top: -50, scale: 0.5, opacity: 0}}
+              initial={{ left: center + 100, top: -50, scale: 0.5, opacity: 0 }}
               animate={{
                 left: pos.x - 12,
                 top: pos.y - 12,
                 scale: 1,
                 opacity: 1,
               }}
-              transition={{type: "spring", stiffness: 300, damping: 20}}
+              transition={{ type: "spring", stiffness: 300, damping: 20 }}
               className="absolute"
-              style={{zIndex: isWinner ? 20 : 10}}
+              style={{ zIndex: isWinner ? 20 : 10 }}
             >
               <DartPin
                 color={color!}
@@ -670,12 +689,12 @@ interface DartPinProps {
   name: string;
 }
 
-function DartPin({color, isWinner, isLoser, name}: DartPinProps) {
+function DartPin({ color, isWinner, isLoser, name }: DartPinProps) {
   return (
     <div className="relative">
       <motion.div
-        animate={isWinner ? {scale: [1, 1.15, 1]} : {}}
-        transition={{repeat: Infinity, duration: 2, ease: "easeInOut"}}
+        animate={isWinner ? { scale: [1, 1.15, 1] } : {}}
+        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
         className="relative"
       >
         <svg
@@ -692,13 +711,13 @@ function DartPin({color, isWinner, isLoser, name}: DartPinProps) {
             stroke="white"
             strokeWidth="2"
           />
-          <circle cx="12" cy="12" r="4" fill="white" opacity="0.4"/>
+          <circle cx="12" cy="12" r="4" fill="white" opacity="0.4" />
         </svg>
         {isWinner && (
           <motion.div
             className="absolute -top-1 -right-1 text-sm"
-            animate={{rotate: [0, 15, -15, 0]}}
-            transition={{repeat: Infinity, duration: 1.5, ease: "easeInOut"}}
+            animate={{ rotate: [0, 15, -15, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
           >
             ⭐
           </motion.div>
@@ -711,7 +730,7 @@ function DartPin({color, isWinner, isLoser, name}: DartPinProps) {
             <motion.div
               key={i}
               className="absolute text-xs"
-              style={{left: (i - 1) * 6}}
+              style={{ left: (i - 1) * 6 }}
               animate={{
                 y: [0, -10, -16],
                 opacity: [1, 0.7, 0],
@@ -731,9 +750,9 @@ function DartPin({color, isWinner, isLoser, name}: DartPinProps) {
       )}
 
       <motion.div
-        initial={{opacity: 0, y: 5}}
-        animate={{opacity: 1, y: 0}}
-        transition={{delay: 0.3, duration: 0.4}}
+        initial={{ opacity: 0, y: 5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.4 }}
         className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
           isLoser
             ? "bg-red-500 text-white"
@@ -752,7 +771,7 @@ interface PerfectGuessOverlayProps {
   playerName: string;
 }
 
-function PerfectGuessOverlay({playerName}: PerfectGuessOverlayProps) {
+function PerfectGuessOverlay({ playerName }: PerfectGuessOverlayProps) {
   const confetti = useMemo(() => {
     const emojis = ["🎉", "🎊", "🏆", "⭐", "💰", "🔥", "💎", "👑"];
     return [...Array(30)].map((_, i) => ({
@@ -766,7 +785,14 @@ function PerfectGuessOverlay({playerName}: PerfectGuessOverlayProps) {
   }, []);
 
   const bursts = useMemo(() => {
-    const colors = ["#ffd700", "#ff6b6b", "#4ecdc4", "#a55eea", "#26de81", "#fd79a8"];
+    const colors = [
+      "#ffd700",
+      "#ff6b6b",
+      "#4ecdc4",
+      "#a55eea",
+      "#26de81",
+      "#fd79a8",
+    ];
     return [...Array(8)].map((_, i) => ({
       id: i,
       color: colors[i % colors.length],
@@ -781,8 +807,8 @@ function PerfectGuessOverlay({playerName}: PerfectGuessOverlayProps) {
         <motion.div
           key={c.id}
           className="absolute text-2xl pointer-events-none"
-          style={{left: `${c.left}%`}}
-          initial={{y: -30, opacity: 1, rotate: 0}}
+          style={{ left: `${c.left}%` }}
+          initial={{ y: -30, opacity: 1, rotate: 0 }}
           animate={{
             y: "100vh",
             rotate: c.rotate,
@@ -802,8 +828,8 @@ function PerfectGuessOverlay({playerName}: PerfectGuessOverlayProps) {
         <motion.div
           key={`burst-${b.id}`}
           className="absolute left-1/2 top-1/3 w-3 h-3 rounded-full pointer-events-none"
-          style={{background: b.color}}
-          initial={{x: "-50%", y: "-50%", scale: 0, opacity: 1}}
+          style={{ background: b.color }}
+          initial={{ x: "-50%", y: "-50%", scale: 0, opacity: 1 }}
           animate={{
             x: `calc(-50% + ${b.x}px)`,
             y: `calc(-50% + ${b.y}px)`,
@@ -848,7 +874,7 @@ function getDartPosition(
   index: number,
   center: number,
   boardRadius: number,
-  actualPrice: number
+  actualPrice: number,
 ) {
   const absDiff = Math.abs(diff);
   const percentOff = absDiff / actualPrice;
@@ -859,10 +885,10 @@ function getDartPosition(
     distance = 12 + (percentOff / 0.05) * 18;
   } else if (percentOff <= 0.15) {
     distance = 30 + ((percentOff - 0.05) / 0.1) * 40;
-  } else if (percentOff <= 0.30) {
+  } else if (percentOff <= 0.3) {
     distance = 70 + ((percentOff - 0.15) / 0.15) * 40;
-  } else if (percentOff <= 0.50) {
-    distance = 110 + ((percentOff - 0.30) / 0.2) * 20;
+  } else if (percentOff <= 0.5) {
+    distance = 110 + ((percentOff - 0.3) / 0.2) * 20;
   } else if (percentOff <= 1.0) {
     distance = boardRadius + 20 + ((percentOff - 0.5) / 0.5) * 30;
   } else {
