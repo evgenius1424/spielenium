@@ -254,13 +254,7 @@ interface ResultsPhaseProps {
   categoryType?: string;
   diffs: PlayerDiff[];
   onNext: () => void;
-}
-
-interface ResultsPhaseProps {
-  item: Item;
-  categoryType?: string;
-  diffs: PlayerDiff[];
-  onNext: () => void;
+  onDartboardReveal?: () => void;
 }
 
 export function ResultsPhase({
@@ -268,14 +262,17 @@ export function ResultsPhase({
   categoryType,
   diffs,
   onNext,
+  onDartboardReveal,
 }: ResultsPhaseProps) {
   const [showDartboard, setShowDartboard] = useState(!item.imageAnswer);
   const [revealedDarts, setRevealedDarts] = useState<string[]>([]);
 
   // Enter key handlers - show results when not showing dartboard, next when showing dartboard
   useEnterKey(() => {
-    if (!showDartboard) setShowDartboard(true);
-    else {
+    if (!showDartboard) {
+      setShowDartboard(true);
+      onDartboardReveal?.();
+    } else {
       onNext();
     }
   });
@@ -386,7 +383,10 @@ export function ResultsPhase({
             className="flex justify-center"
           >
             <Button
-              onClick={() => setShowDartboard(true)}
+              onClick={() => {
+                setShowDartboard(true);
+                onDartboardReveal?.();
+              }}
               className="h-12 px-8 text-lg"
             >
               Show Results 🎯

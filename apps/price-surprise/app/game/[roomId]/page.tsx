@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useGameRoom } from "./use-game-room";
@@ -18,6 +19,37 @@ import {
 export default function HostRoom() {
   const { roomId } = useParams<{ roomId: string }>();
   const { room, diffs, winners, losers, copied, actions } = useGameRoom(roomId);
+  const [dartboardRevealed, setDartboardRevealed] = useState(false);
+  const [scoreSnapshot, setScoreSnapshot] = useState<Record<string, number>>({});
+
+  // Custom close round handler that captures scores before API call
+  const handleCloseRound = () => {
+    if (room) {
+      const snapshot: Record<string, number> = {};
+      room.players.forEach(p => { snapshot[p.id] = p.score; });
+      setScoreSnapshot(snapshot);
+      actions.closeRound();
+    }
+  };
+
+  // Reset dartboardRevealed and score snapshot when not in results phase
+  useEffect(() => {
+    if (room?.state !== "results") {
+      setDartboardRevealed(false);
+      setScoreSnapshot({});
+    }
+  }, [room?.state]);
+
+  // Create display players with snapshot scores when needed
+  const displayPlayers = useMemo(() => {
+    if (room?.state === "results" && !dartboardRevealed && Object.keys(scoreSnapshot).length > 0) {
+      return room.players.map(p => ({
+        ...p,
+        score: scoreSnapshot[p.id] ?? p.score
+      }));
+    }
+    return room?.players ?? [];
+  }, [room?.players, room?.state, dartboardRevealed, scoreSnapshot]);
 
   if (!room) {
     return (
@@ -27,7 +59,7 @@ export default function HostRoom() {
     );
   }
 
-  const rankedPlayers = computeRankedPlayers(room.players);
+  const rankedPlayers = computeRankedPlayers(displayPlayers);
 
   return (
     <motion.div
@@ -60,7 +92,7 @@ export default function HostRoom() {
                 key="guessing"
                 item={room.currentItem}
                 categoryName={room.selectedCategory?.name}
-                onCloseRound={actions.closeRound}
+                onCloseRound={handleCloseRound}
               />
             )}
 
@@ -71,6 +103,7 @@ export default function HostRoom() {
                 categoryType={room.selectedCategory?.type}
                 diffs={diffs}
                 onNext={actions.nextStep}
+                onDartboardReveal={() => setDartboardRevealed(true)}
               />
             )}
 
@@ -81,8 +114,8 @@ export default function HostRoom() {
         <aside className="absolute top-4 right-4 w-72">
           <Scoreboard
             players={rankedPlayers}
-            winners={winners}
-            losers={losers}
+            winners={room.state === "results" && !dartboardRevealed ? [] : winners}
+            losers={room.state === "results" && !dartboardRevealed ? [] : losers}
             isGameOver={room.state === "game-over"}
           />
         </aside>
